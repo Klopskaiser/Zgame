@@ -1,0 +1,371 @@
+================================================================================
+ORIONKRIEGE — BILD-PROMPTS FÜR IMAGE-GENERATOR
+================================================================================
+
+Diese Datei enthält für jede Grafik in public/images/ einen Prompt. Ziel: ein
+durchgängig konsistenter Look über alle 69 Bilder.
+
+STIL:       Digital Painting / Concept Art (handgemalt, malerisch, atmosphärisch)
+THEMA:      Sci-Fi-Weltraum, dunkles Slate/Anthrazit-Farbschema
+GENERATOR:  Empfehlung Krea 2 (starke malerische Qualität). Prompts sind
+            Natural-Language und funktionieren ebenso in Ideogram 4.
+
+--------------------------------------------------------------------------------
+SO NUTZT DU DIESE DATEI
+--------------------------------------------------------------------------------
+1. Hänge den STYLE-Baustein (siehe unten) an JEDEN Einzel-Prompt an. Das ist der
+   Haupthebel für einen einheitlichen Look.
+2. Halte über alle Bilder denselben Seed / dieselbe Style-Referenz konstant, dann
+   passen Beleuchtung und Palette zusammen.
+3. Seitenverhältnis / Auflösung je Kategorie:
+     - buildings / research / ships / defense  ->  1:1  (256×256, quadratisch)
+     - planets                                 ->  1:1  (1024×1024)
+     - backgrounds                             ->  16:9 (1920×1080)
+4. Dateiname = interner Key. NICHT umbenennen. Erzeugtes Bild exakt unter dem
+   angegebenen Dateinamen im passenden Ordner ablegen.
+
+================================================================================
+=== STYLE (an JEDEN Prompt anhängen) ===
+================================================================================
+digital painting, sci-fi concept art, painterly rendering with soft brushed
+edges, dramatic cinematic rim lighting, cohesive lighting across the whole set,
+dark slate and charcoal color palette (#05070a to #1e293b), cool grey metal
+accents (#94a3b8), cyan crystal glow (#38bdf8), violet deuterium glow (#a855f7),
+electric blue energy highlights (#3b82f6), moody atmospheric space setting, high
+detail, professional game asset.
+NEGATIVE: no text, no letters, no numbers, no watermark, no logo, no UI frames,
+no borders, no photo-realism, no bright white background.
+
+================================================================================
+BUILDINGS  (Ordner: public/images/buildings/ — 1:1, zentriertes Objekt auf dunklem Grund)
+================================================================================
+
+metalMine.png
+A robotic metal ore mine built into rocky grey terrain, industrial drilling rig
+and conveyor structures extracting raw metal, cool grey metallic tones, single
+centered structure on a dark background.
+
+crystalMine.png
+A crystal mining facility, glowing cyan crystalline formations being harvested by
+sleek machinery, faceted cyan crystals emitting light, single centered structure
+on a dark background.
+
+deuteriumSynthesizer.png
+A deuterium synthesizer plant, tall refinery towers with pipes and glowing violet
+liquid tanks extracting gas from the ground, violet energy glow, single centered
+structure on a dark background.
+
+solarPowerPlant.png
+A solar power plant with large angled photovoltaic panel arrays catching starlight,
+electric blue energy highlights, single centered structure on a dark background.
+
+fusionPowerPlant.png
+A fusion power plant, a domed reactor core radiating intense violet-blue plasma
+energy, containment rings and cooling towers, single centered structure on a dark
+background.
+
+roboticsFactory.png
+A robotics factory, an industrial hangar with robotic assembly arms building
+machinery, sparks and mechanical detail, cool grey metal tones, single centered
+structure on a dark background.
+
+naniteFactory.png
+An advanced nanite factory, a high-tech facility with glowing microscopic nano-swarm
+conduits and holographic assembly fields, subtle blue-cyan glow, single centered
+structure on a dark background.
+
+shipyard.png
+A spaceship shipyard, a large orbital construction hangar with scaffolding around a
+half-built spacecraft, cranes and welding light, electric blue accents, single
+centered structure on a dark background.
+
+researchLab.png
+A research laboratory, a sleek science facility with holographic data displays,
+telescopes and glowing blue instrument panels, single centered structure on a dark
+background.
+
+terraformer.png
+A terraformer installation, a colossal atmospheric processing machine reshaping
+planetary terrain, glowing green-blue energy emitters, single centered structure on
+a dark background.
+
+missileSilo.png
+A missile silo, a reinforced military bunker with open hatches revealing rockets,
+armored concrete and grey metal, warning red glow, single centered structure on a
+dark background.
+
+metalStorage.png
+A metal storage depot, large cylindrical armored silos and stacked metal containers,
+cool grey metallic tones, single centered structure on a dark background.
+
+crystalStorage.png
+A crystal storage vault, glowing cyan crystal shards stored inside transparent
+armored silos, cyan glow, single centered structure on a dark background.
+
+deuteriumStorage.png
+A deuterium storage facility, large pressurized spherical tanks filled with glowing
+violet liquid gas, violet glow, single centered structure on a dark background.
+
+================================================================================
+RESEARCH  (Ordner: public/images/research/ — 1:1, ikonisches Symbol/Objekt auf dunklem Grund)
+================================================================================
+
+espionage.png
+Espionage technology emblem, a stealthy reconnaissance satellite with a glowing
+scanning eye and signal waves, subtle green-cyan glow, single centered icon on a
+dark background.
+
+computer.png
+Computer technology emblem, a glowing holographic circuit board and processor core
+with data streams, electric blue glow, single centered icon on a dark background.
+
+weapons.png
+Weapons technology emblem, crossed energy cannon barrels with a glowing plasma
+charge, aggressive red-orange highlights, single centered icon on a dark background.
+
+shielding.png
+Shielding technology emblem, a glowing hexagonal energy shield deflecting an impact,
+electric blue force field, single centered icon on a dark background.
+
+armour.png
+Armour technology emblem, a heavily reinforced metal hull plate with layered armor
+and rivets, cool grey metal tones, single centered icon on a dark background.
+
+energy.png
+Energy technology emblem, a glowing energy core with radiating power arcs and
+lightning, electric blue and violet glow, single centered icon on a dark background.
+
+combustionDrive.png
+Combustion drive emblem, a rocket engine nozzle firing a fiery orange exhaust plume,
+warm ember glow against dark metal, single centered icon on a dark background.
+
+impulseDrive.png
+Impulse drive emblem, a sleek ion thruster emitting a focused electric blue exhaust
+beam, single centered icon on a dark background.
+
+hyperspaceDrive.png
+Hyperspace drive emblem, a swirling warp portal bending starlight into a violet-blue
+vortex, single centered icon on a dark background.
+
+astrophysics.png
+Astrophysics emblem, an orbital telescope observing distant galaxies and star charts,
+cosmic cyan and violet nebula glow, single centered icon on a dark background.
+
+laserTech.png
+Laser technology emblem, a focused crimson laser beam emitter with a glowing lens,
+sharp red light, single centered icon on a dark background.
+
+ionTech.png
+Ion technology emblem, a crackling ion cannon coil discharging pale blue electric
+arcs, single centered icon on a dark background.
+
+plasmaTech.png
+Plasma technology emblem, a containment coil holding a churning ball of violet-pink
+plasma energy, single centered icon on a dark background.
+
+intergalacticResearchNetwork.png
+Intergalactic research network emblem, a web of glowing data links connecting orbital
+science stations across star systems, electric blue network glow, single centered
+icon on a dark background.
+
+================================================================================
+SHIPS  (Ordner: public/images/ships/ — 1:1, einzelnes Raumschiff, 3/4-Ansicht, dunkler Grund)
+================================================================================
+
+smallCargo.png
+A small cargo spaceship, compact freighter with a stubby hull and modest container
+bays, cool grey metal with blue running lights, three-quarter view on a dark space
+background.
+
+largeCargo.png
+A large cargo spaceship, bulky heavy freighter with rows of container modules and
+big engines, cool grey metal with blue running lights, three-quarter view on a dark
+space background.
+
+lightFighter.png
+A light fighter spacecraft, small agile single-seat starfighter with swept wings and
+glowing blue thrusters, three-quarter view on a dark space background.
+
+heavyFighter.png
+A heavy fighter spacecraft, larger armored starfighter with reinforced hull and twin
+cannons, blue engine glow, three-quarter view on a dark space background.
+
+cruiser.png
+A cruiser warship, mid-sized sleek military spacecraft with side weapon batteries and
+strong engines, blue thruster glow, three-quarter view on a dark space background.
+
+battleship.png
+A battleship, large heavily armed capital warship with a long armored hull and
+multiple turret arrays, imposing grey metal, three-quarter view on a dark space
+background.
+
+colonyShip.png
+A colony ship, a large rounded vessel carrying habitat modules and terraforming pods,
+warm interior lights, three-quarter view on a dark space background.
+
+recycler.png
+A recycler ship, an industrial salvage vessel with collector arms and cargo scoops
+gathering debris, cool grey metal, three-quarter view on a dark space background.
+
+espionageProbe.png
+An espionage probe, a tiny fast unmanned drone with a glowing green sensor eye and
+compact thrusters, three-quarter view on a dark space background.
+
+bomber.png
+A bomber spacecraft, a rugged heavy craft with bulging bomb bays and thick armor
+plating, orange warning lights, three-quarter view on a dark space background.
+
+destroyer.png
+A destroyer warship, a powerful angular capital ship bristling with heavy cannons and
+sharp armored edges, menacing grey hull, three-quarter view on a dark space
+background.
+
+deathStar.png
+A colossal moon-sized battle station sphere with a massive concave superlaser dish
+and cratered armored surface, dwarfing nearby ships, ominous violet superlaser glow,
+epic scale on a dark space background.
+
+solarSatellite.png
+A solar satellite, a small unmanned orbital platform with wide solar panel wings
+catching starlight, electric blue energy glow, three-quarter view on a dark space
+background.
+
+================================================================================
+DEFENSE  (Ordner: public/images/defense/ — 1:1, einzelnes Boden-Verteidigungsobjekt, dunkler Grund)
+================================================================================
+
+rocketLauncher.png
+A rocket launcher defense turret, a ground-mounted armored missile battery aimed at
+the sky, cool grey metal with warning red tips, single centered structure on a dark
+background.
+
+lightLaser.png
+A light laser defense turret, a slim ground turret with a single glowing crimson
+laser emitter, single centered structure on a dark background.
+
+heavyLaser.png
+A heavy laser defense turret, a larger reinforced turret with a thick barrel charging
+an intense red laser, single centered structure on a dark background.
+
+gaussCannon.png
+A gauss cannon defense turret, a long electromagnetic railgun barrel with charging
+coils and pale blue arcs, heavy grey metal, single centered structure on a dark
+background.
+
+ionCannon.png
+An ion cannon defense turret, a broad emitter dish crackling with pale blue ionized
+energy, single centered structure on a dark background.
+
+plasmaTurret.png
+A plasma turret defense structure, a heavy cannon glowing with a charged violet-pink
+plasma orb at its muzzle, single centered structure on a dark background.
+
+smallShieldDome.png
+A small shield dome generator, a compact emitter projecting a translucent blue energy
+dome, electric blue force field, single centered structure on a dark background.
+
+largeShieldDome.png
+A large shield dome generator, a massive emitter projecting a wide translucent
+blue-violet energy dome over terrain, single centered structure on a dark background.
+
+================================================================================
+PLANETS  (Ordner: public/images/planets/ — 1:1, ganzer Planet aus dem Orbit, Sternenhintergrund)
+================================================================================
+
+hot-1.png
+A scorching volcanic planet seen from orbit, cracked lava fields glowing with rivers
+of molten orange-red magma, dark smoky atmosphere, deep space background.
+
+hot-2.png
+A blistering desert planet seen from orbit, arid rust-orange dunes and dry cracked
+canyons, thin hazy heat atmosphere, deep space background.
+
+hot-3.png
+A hellish molten planet seen from orbit, glowing red-hot surface with erupting
+volcanoes and ash clouds, faint red glow along the horizon, deep space background.
+
+temperate-1.png
+A lush earth-like planet seen from orbit, blue oceans and green continents with
+swirling white clouds, gentle blue atmospheric glow, deep space background.
+
+temperate-2.png
+A green temperate planet seen from orbit, wide forests and rivers, scattered clouds
+and a soft blue-green atmosphere, deep space background.
+
+temperate-3.png
+A tropical ocean planet seen from orbit, vast turquoise seas with small green
+archipelagos and cloud bands, bright blue atmosphere, deep space background.
+
+cold-1.png
+A frozen ice planet seen from orbit, white and pale-blue glaciers with cracked ice
+sheets, cold crisp atmosphere, deep space background.
+
+cold-2.png
+A snowy tundra planet seen from orbit, pale grey-blue frozen plains and icy mountain
+ranges, thin misty atmosphere, deep space background.
+
+cold-3.png
+A blue frozen world seen from orbit, deep-blue ice oceans and swirling polar storms,
+faint cyan atmospheric glow, deep space background.
+
+================================================================================
+BACKGROUNDS  (Ordner: public/images/backgrounds/ — 16:9, atmosphärisch, kontrastarm für lesbare UI)
+================================================================================
+
+overview.png
+A calm sci-fi planetary command view, a colonized planet surface with distant domed
+colony structures under a starry sky, muted dark slate tones, low contrast so UI text
+stays readable, wide cinematic 16:9 space scene.
+
+buildings.png
+A sci-fi industrial colony skyline at night, silhouettes of mines, refineries and
+factories with soft blue and orange work lights, dark muted atmosphere, low contrast,
+wide cinematic 16:9 scene.
+
+facilities.png
+A sci-fi high-tech facility complex, robotics and nanite factories with glowing
+conduits and orbital shipyard scaffolding in the distance, dark blue muted tones, low
+contrast, wide cinematic 16:9 scene.
+
+research.png
+A sci-fi research laboratory interior, dim holographic displays, telescopes and
+glowing blue data panels, deep atmospheric shadows, low contrast, wide cinematic 16:9
+scene.
+
+shipyard.png
+A vast orbital shipyard hangar, spacecraft under construction surrounded by
+scaffolding and blue welding light, dark cavernous atmosphere, low contrast, wide
+cinematic 16:9 scene.
+
+defense.png
+A fortified planetary defense line at dusk, rows of turrets and shield dome emitters
+under a dark sky with faint energy glows, muted tones, low contrast, wide cinematic
+16:9 scene.
+
+fleet.png
+A fleet of spaceships flying in formation through deep space toward a distant planet,
+faint blue engine trails, dark starfield, low contrast, wide cinematic 16:9 scene.
+
+galaxy.png
+A sci-fi galaxy star map view, a swirling spiral galaxy with scattered star systems
+and faint nebula clouds in cyan and violet, deep dark space, low contrast, wide
+cinematic 16:9 scene.
+
+empire.png
+An epic overview of multiple colonized worlds across a star system, several planets
+and orbital stations connected by faint blue trade routes, dark cosmic backdrop, low
+contrast, wide cinematic 16:9 scene.
+
+combat.png
+An intense space battle, warships exchanging laser and plasma fire with explosions and
+debris against a dark starfield, dramatic red and blue energy flashes kept muted, low
+contrast, wide cinematic 16:9 scene.
+
+debug.png
+An abstract sci-fi technical grid interface, glowing blue wireframe planets and data
+streams over a dark void, holographic diagnostic feel, low contrast, wide cinematic
+16:9 scene.
+
+================================================================================
+ENDE — 69 Prompts (14 buildings, 14 research, 13 ships, 8 defense, 9 planets, 11 backgrounds)
+================================================================================

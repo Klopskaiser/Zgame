@@ -1,0 +1,6 @@
+{
+  "name": "Orionkriege",
+  "description": "Ein fesselnder, webbasierter OGame-Klon im Weltraum-Echtzeitformat mit KI-Gegnern, Planetenzerstörung und Offline-Simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

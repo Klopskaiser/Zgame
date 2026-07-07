@@ -1,0 +1,164 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #05070a;
+
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #38bdf8;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e3a8a;
+  --color-blue-900: #1e3a8a;
+  --color-blue-950: #172554;
+
+  --color-deuterium: #a855f7;
+  --color-crystal: #38bdf8;
+  --color-metal: #94a3b8;
+
+  --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --bg: #05070a;
+  --panel: #0f172a;
+  --accent: #3b82f6;
+  --text-dim: #94a3b8;
+  --border: #1e293b;
+  --metal: #94a3b8;
+  --crystal: #38bdf8;
+  --deuterium: #a855f7;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+}
+
+body {
+  background-color: var(--bg) !important;
+  background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #05070a 100%) !important;
+  background-attachment: fixed;
+  color: #f1f5f9;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom classes extracted from the Elegant Dark design theme */
+.theme-ui-container {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 0 40px rgba(0,0,0,0.5);
+}
+
+.theme-header {
+  background: var(--panel);
+  border-bottom: 2px solid var(--accent);
+}
+
+.theme-sidebar {
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+}
+
+.theme-main-view {
+  background: var(--panel);
+}
+
+.theme-menu-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.theme-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: white;
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.theme-btn:hover {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.theme-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: bold;
+}
+
+.theme-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.theme-arch-panel {
+  background: rgba(0,0,0,0.4);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: #10b981;
+  border-left: 3px solid #10b981;
+}
+
+.theme-mult-pill {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-mult-pill:hover {
+  border-color: var(--accent);
+}
+
+.theme-mult-pill.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* Custom scrollbar for webkit browsers matching theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
