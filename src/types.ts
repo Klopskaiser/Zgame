@@ -59,6 +59,7 @@ export interface Ships {
   heavyFighter: number;
   cruiser: number;
   battleship: number;
+  battlecruiser: number;
   colonyShip: number;
   recycler: number;
   espionageProbe: number;
@@ -155,7 +156,7 @@ export interface Player {
   nextActionTime?: number;
 }
 
-export type MissionType = 'transport' | 'attack' | 'spy' | 'colonize' | 'destroy' | 'recycle';
+export type MissionType = 'transport' | 'attack' | 'spy' | 'colonize' | 'destroy' | 'recycle' | 'station';
 
 export interface Fleet {
   id: string;

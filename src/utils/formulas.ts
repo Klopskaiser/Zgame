@@ -52,6 +52,7 @@ export const SHIP_NAMES: Record<keyof Ships, string> = {
   heavyFighter: 'Schwerer Jäger',
   cruiser: 'Kreuzer',
   battleship: 'Schlachtschiff',
+  battlecruiser: 'Schlachtkreuzer',
   colonyShip: 'Kolonieschiff',
   recycler: 'Recycler',
   espionageProbe: 'Spionagesonde',
@@ -124,6 +125,7 @@ export const SHIP_COSTS: Record<keyof Ships, Resources> = {
   heavyFighter: { metal: 6000, crystal: 2000, deuterium: 0 },
   cruiser: { metal: 20000, crystal: 7000, deuterium: 2000 },
   battleship: { metal: 45000, crystal: 15000, deuterium: 0 },
+  battlecruiser: { metal: 30000, crystal: 40000, deuterium: 15000 },
   colonyShip: { metal: 10000, crystal: 20000, deuterium: 10000 },
   recycler: { metal: 10000, crystal: 6000, deuterium: 2000 },
   espionageProbe: { metal: 0, crystal: 1000, deuterium: 0 },
@@ -158,6 +160,7 @@ export const SHIP_STATS: Record<keyof Ships, UnitStats> = {
   heavyFighter: { structural: 10000, shield: 25, attack: 150 },
   cruiser: { structural: 27000, shield: 50, attack: 400 },
   battleship: { structural: 60000, shield: 200, attack: 1000 },
+  battlecruiser: { structural: 70000, shield: 400, attack: 700 },
   colonyShip: { structural: 30000, shield: 100, attack: 50 },
   recycler: { structural: 16000, shield: 10, attack: 1 },
   espionageProbe: { structural: 1000, shield: 1, attack: 0.01 },
@@ -193,12 +196,13 @@ export const RAPID_FIRE: Partial<Record<UnitKey, Partial<Record<UnitKey, number>
   heavyFighter: { smallCargo: 3, espionageProbe: 5, solarSatellite: 5 },
   cruiser:      { lightFighter: 6, rocketLauncher: 10, espionageProbe: 5, solarSatellite: 5 },
   battleship:   { espionageProbe: 5, solarSatellite: 5 },
+  battlecruiser: { smallCargo: 3, largeCargo: 3, heavyFighter: 4, cruiser: 4, battleship: 7, espionageProbe: 5, solarSatellite: 5 },
   colonyShip:   { espionageProbe: 5, solarSatellite: 5 },
   recycler:     { espionageProbe: 5, solarSatellite: 5 },
   bomber:       { rocketLauncher: 20, lightLaser: 20, heavyLaser: 10, ionCannon: 10, espionageProbe: 5, solarSatellite: 5 },
   destroyer:    { battleship: 2, lightLaser: 10, plasmaTurret: 2, espionageProbe: 5, solarSatellite: 5 },
   deathStar:    { smallCargo: 250, largeCargo: 250, lightFighter: 200, heavyFighter: 100, cruiser: 33,
-                  battleship: 30, recycler: 250, bomber: 25, destroyer: 5, rocketLauncher: 200,
+                  battleship: 30, battlecruiser: 15, recycler: 250, bomber: 25, destroyer: 5, rocketLauncher: 200,
                   lightLaser: 200, heavyLaser: 100, gaussCannon: 50, ionCannon: 100,
                   espionageProbe: 1250, solarSatellite: 1250 },
 };
@@ -320,7 +324,9 @@ export function getEnergyStatus(
   extraConsumption: number = 0 // zusätzlicher Verbrauch, z.B. Materieumwandler eines Mondes
 ): { produced: number; consumed: number; ratio: number; satelliteProductionPerUnit: number } {
   const basePower = getSolarPowerPlantProduction(buildings.solarPowerPlant || 0);
-  const fusionPower = fusionActive ? getFusionPowerPlantProduction(buildings.fusionPowerPlant || 0, energyTechLevel) * speedMultiplier : 0;
+  // Energie ist eine reine Bilanz/Ratio und speed-unabhängig: KEIN speedMultiplier (der Parameter
+  // bleibt aus Kompatibilitätsgründen erhalten, wird hier aber bewusst nicht mehr angewandt).
+  const fusionPower = fusionActive ? getFusionPowerPlantProduction(buildings.fusionPowerPlant || 0, energyTechLevel) : 0;
 
   // OGame redesign formula: energy per satellite = Math.floor((maxTemp + 140) / 6), min 1.
   const satPowerPerUnit = Math.max(1, Math.floor((temperatureMax + 140) / 6));
@@ -545,6 +551,7 @@ export function getShipSpeed(shipType: keyof Ships, research: Research): number 
     heavyFighter: { base: 10000, drive: 'impulse' },
     cruiser: { base: 15000, drive: 'impulse' },
     battleship: { base: 10000, drive: 'hyperspace' },
+    battlecruiser: { base: 10000, drive: 'hyperspace' },
     colonyShip: { base: 2500, drive: 'impulse' },
     recycler: { base: 2000, drive: 'combustion' },
     espionageProbe: { base: 100000000, drive: 'combustion' },
@@ -590,6 +597,7 @@ export function getShipCargoCapacity(shipType: keyof Ships): number {
     heavyFighter: 100,
     cruiser: 800,
     battleship: 1500,
+    battlecruiser: 750,
     colonyShip: 7500,
     recycler: 20000,
     espionageProbe: 5,
@@ -624,6 +632,7 @@ export function getFlightFuelConsumption(
     heavyFighter: 75,
     cruiser: 300,
     battleship: 500,
+    battlecruiser: 250,
     colonyShip: 1000,
     recycler: 300,
     espionageProbe: 1,
@@ -701,6 +710,7 @@ export const SHIP_REQUIREMENTS: Record<keyof Ships, Requirement> = {
   heavyFighter: { buildings: { shipyard: 3 }, research: { armour: 2, impulseDrive: 2 } },
   cruiser: { buildings: { shipyard: 5 }, research: { impulseDrive: 4, laserTech: 3 } },
   battleship: { buildings: { shipyard: 7 }, research: { hyperspaceDrive: 4 } },
+  battlecruiser: { buildings: { shipyard: 8 }, research: { laserTech: 12, hyperspaceDrive: 5 } },
   colonyShip: { buildings: { shipyard: 4 }, research: { impulseDrive: 3 } },
   recycler: { buildings: { shipyard: 4 }, research: { combustionDrive: 6, shielding: 2 } },
   espionageProbe: { buildings: { shipyard: 3 }, research: { combustionDrive: 3, espionage: 2 } },
@@ -801,6 +811,12 @@ export function getMoonMaxFields(mondbasisLevel: number, moonExpeditionLevel: nu
   return 1 + (moonExpeditionLevel || 0) + 3 * (mondbasisLevel || 0);
 }
 
+// Effektive maximale Baufelder inkl. Terraformer-Bonus (+5 je Stufe, nur Planeten).
+// Monde nutzen ihre dynamisch gesetzte maxFields (getMoonMaxFields) unverändert weiter.
+export function getEffectiveMaxFields(planet: Planet): number {
+  return planet.maxFields + (planet.isMoon ? 0 : 5 * (planet.buildings.terraformer || 0));
+}
+
 // Monddurchmesser bei Erschaffung (OGame-Formel, hier fix mit 20% Entstehungswahrscheinlichkeit):
 //   floor((x + 3 * chance)^0.5 * 1000), x = Zufallszahl 10..20
 export function getMoonDiameter(chancePercent: number = 20): number {
@@ -830,10 +846,12 @@ export function getMatterConverterFactor(level: number, laserTechLevel: number, 
   return base * techBonus;
 }
 
-// Energieverbrauch des Materieumwandlers: 1600 * L * 1.1^L * speedMultiplier
-export function getMatterConverterEnergyConsumption(level: number, speedMultiplier: number = 1): number {
+// Energieverbrauch des Materieumwandlers: 1600 * L * 1.1^L.
+// Energie ist eine speed-unabhängige Bilanz → KEIN speedMultiplier (Parameter bleibt aus
+// Kompatibilitätsgründen erhalten, wird aber nicht mehr angewandt).
+export function getMatterConverterEnergyConsumption(level: number, _speedMultiplier: number = 1): number {
   if (!level || level <= 0) return 0;
-  return Math.round(1600 * level * Math.pow(1.1, level) * speedMultiplier);
+  return Math.round(1600 * level * Math.pow(1.1, level));
 }
 
 // Materieumwandler-Ausstoß pro Stunde bei gegebenem Metall-Input (bereits energie-/verfügbarkeitsgedrosselt).

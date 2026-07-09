@@ -85,6 +85,7 @@ import {
   getMaxBuildingLevel,
   getBuildableBuildingsForBody,
   getMoonMaxFields,
+  getEffectiveMaxFields,
   getMatterConverterMetalInput,
   getMatterConverterFactor,
   getMatterConverterEnergyConsumption,
@@ -110,8 +111,12 @@ import {
 
 const STORAGE_KEY = 'orionkriege_savestate_v1';
 
+// Deterministische ID des Spieler-Heimatplaneten (homeCoords player = { system: 1, slot: 4 } in
+// gameEngine.generateUniverse → id `planet_${system}_${slot}`). Der Heimatplanet ist nicht aufgebbar.
+const PLAYER_HOME_PLANET_ID = 'planet_1_4';
+
 const MISSION_LABELS: Record<MissionType, string> = {
-  transport: 'Transport', attack: 'Angriff', spy: 'Spionage', colonize: 'Kolonisierung', destroy: 'Planet vernichten', recycle: 'Recyceln',
+  transport: 'Transport', attack: 'Angriff', spy: 'Spionage', colonize: 'Kolonisierung', destroy: 'Planet vernichten', recycle: 'Recyceln', station: 'Stationieren',
 };
 
 // Restzeit bis zu einem Zeitpunkt (ms) als kompakter String + absolute Uhrzeit.
@@ -243,6 +248,7 @@ export default function App() {
     heavyFighter: 0,
     cruiser: 0,
     battleship: 0,
+    battlecruiser: 0,
     colonyShip: 0,
     recycler: 0,
     espionageProbe: 0,
@@ -547,6 +553,7 @@ export default function App() {
         heavyFighter: 0,
         cruiser: 0,
         battleship: 0,
+        battlecruiser: 0,
         colonyShip: 0,
         recycler: 0,
         espionageProbe: 0,
@@ -600,6 +607,11 @@ export default function App() {
       if (fieldTotal <= 0) {
         return { success: false, error: 'Kein Trümmerfeld an diesem Ort.' };
       }
+    }
+
+    // Stationieren: Schiffe bleiben dauerhaft am Ziel – nur auf eigenen Planeten erlaubt.
+    if (mission === 'station' && targetPlanet.ownerId !== 'player') {
+      return { success: false, error: 'Stationieren ist nur auf eigenen Planeten möglich.' };
     }
 
     // Calculate flight stats
@@ -723,7 +735,7 @@ export default function App() {
 
     // Fields used limit (taking into account already queued buildings!)
     const totalFieldsUsedWithQueue = selectedPlanet.fieldsUsed + activeQueue.length;
-    if (totalFieldsUsedWithQueue >= selectedPlanet.maxFields) {
+    if (totalFieldsUsedWithQueue >= getEffectiveMaxFields(selectedPlanet)) {
       alert(selectedPlanet.isMoon
         ? 'Mond ist voll bebaut! Baue die Mondbasis aus oder erforsche die Mondexpedition für mehr Felder.'
         : 'Planet ist voll bebaut! Keine freien Felder verfügbar (Warteschlange berücksichtigt).');
@@ -961,6 +973,72 @@ export default function App() {
     setIsRenaming(false);
   };
 
+  // Planet aufgeben: setzt den Planeten auf unbesiedelt zurück (wieder besiedelbar) und entfernt
+  // einen ggf. vorhandenen Mond mit. Nicht erlaubt für Monde, den Heimatplaneten oder den letzten
+  // verbliebenen Planeten des Spielers.
+  const handleAbandonPlanet = () => {
+    if (!state || !selectedPlanet) return;
+    if (selectedPlanet.isMoon || selectedPlanet.id === PLAYER_HOME_PLANET_ID) return;
+    const playerPlanets = state.planets.filter((p) => p.ownerId === 'player' && !p.isMoon);
+    if (playerPlanets.length <= 1) return;
+
+    const moon = getMoonOfPlanet(selectedPlanet);
+    if (!window.confirm(
+      `Planet "${selectedPlanet.name}" (${selectedPlanet.system}:${selectedPlanet.slot}) wirklich aufgeben? ` +
+      `Alle Gebäude, Schiffe, Verteidigung und Ressourcen${moon ? ' sowie der zugehörige Mond' : ''} ` +
+      `gehen unwiderruflich verloren. Der Slot wird wieder besiedelbar.`
+    )) return;
+
+    const abandonedId = selectedPlanet.id;
+    const updatedPlanets = state.planets
+      // Zugehörigen Mond mit aufgeben → aus der Welt entfernen (unbesiedelte Monde existieren nicht).
+      .filter((p) => !(moon && p.id === moon.id))
+      .map((p) => {
+        if (p.id !== abandonedId) return p;
+        return {
+          ...p,
+          ownerId: null,
+          name: `Planet ${p.system}:${p.slot}`,
+          moonId: null,
+          buildings: {
+            metalMine: 0, crystalMine: 0, deuteriumSynthesizer: 0, solarPowerPlant: 0,
+            fusionPowerPlant: 0, roboticsFactory: 0, naniteFactory: 0, shipyard: 0,
+            researchLab: 0, terraformer: 0, missileSilo: 0, metalStorage: 0,
+            crystalStorage: 0, deuteriumStorage: 0, moonCannon: 0, mondbasis: 0,
+            matterConverter: 0, jumpGate: 0,
+          },
+          ships: {
+            smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0,
+            battleship: 0, battlecruiser: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0,
+            destroyer: 0, deathStar: 0, solarSatellite: 0,
+          },
+          defense: {
+            rocketLauncher: 0, lightLaser: 0, heavyLaser: 0, gaussCannon: 0, ionCannon: 0,
+            plasmaTurret: 0, smallShieldDome: 0, largeShieldDome: 0,
+          },
+          resources: { metal: 0, crystal: 0, deuterium: 0 },
+          fieldsUsed: 0,
+          activeBuildJob: null,
+          activeBuildQueue: [],
+          activeShipyardQueue: [],
+          fusionActive: false,
+          converterActive: undefined,
+          debris: undefined,
+        };
+      });
+
+    const nextSelectedId = state.selectedPlanetId === abandonedId
+      ? (updatedPlanets.find((p) => p.ownerId === 'player' && !p.isMoon)?.id ?? PLAYER_HOME_PLANET_ID)
+      : state.selectedPlanetId;
+
+    setState({
+      ...state,
+      planets: updatedPlanets,
+      selectedPlanetId: nextSelectedId,
+      debugLog: appendPlayerDebugLog(state, 'info', `Planet ${selectedPlanet.name} (${selectedPlanet.system}:${selectedPlanet.slot}) aufgegeben`),
+    });
+  };
+
   // Cancel building in queue handler
   const handleCancelBuilding = (jobId: string) => {
     if (!state || !selectedPlanet) return;
@@ -1114,8 +1192,22 @@ export default function App() {
   const handleOrderShipyard = (type: 'ship' | 'defense', itemKey: keyof Ships | keyof Defense) => {
     if (!state || !selectedPlanet) return;
 
-    const qty = type === 'ship' ? shipyardOrderQty[itemKey as string] || 0 : defenseOrderQty[itemKey as string] || 0;
+    let qty = type === 'ship' ? shipyardOrderQty[itemKey as string] || 0 : defenseOrderQty[itemKey as string] || 0;
     if (qty <= 0) return;
+
+    // Schildkuppeln: max. 1 pro Planet – bereits vorhandene UND in der Werft-Warteschlange befindliche mitzählen.
+    if (type === 'defense' && (itemKey === 'smallShieldDome' || itemKey === 'largeShieldDome')) {
+      const dKey = itemKey as keyof Defense;
+      const existing = selectedPlanet.defense[dKey] || 0;
+      const queued = selectedPlanet.activeShipyardQueue
+        .filter((j) => j.type === 'defense' && j.target === dKey)
+        .reduce((a, j) => a + j.count, 0);
+      if (existing + queued >= 1) {
+        alert('Von dieser Schildkuppel ist bereits eine vorhanden oder in Bau (max. 1 pro Planet).');
+        return;
+      }
+      qty = 1; // nie mehr als eine Kuppel in Auftrag geben
+    }
 
     const singleCost = type === 'ship' ? SHIP_COSTS[itemKey as keyof Ships] : DEFENSE_COSTS[itemKey as keyof Defense];
     const totalCost = {
@@ -1134,7 +1226,8 @@ export default function App() {
       singleCost,
       selectedPlanet.buildings.shipyard,
       selectedPlanet.buildings.roboticsFactory,
-      state.speedMultiplier
+      state.speedMultiplier,
+      selectedPlanet.buildings.naniteFactory || 0
     );
 
     const newYardJob = {
@@ -1262,7 +1355,7 @@ export default function App() {
     <div id="game-dashboard-container" className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
       {/* 1. TOP STATS BAR */}
       <header className="theme-header p-4 shrink-0 relative z-20 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           
           {/* Planet Selector */}
           <div className="flex items-center gap-3">
@@ -1281,7 +1374,7 @@ export default function App() {
               </select>
             </div>
             <span className="text-xs text-slate-500 font-mono hidden sm:inline">
-              Felder: {selectedPlanet.fieldsUsed} / {selectedPlanet.maxFields}
+              Felder: {selectedPlanet.fieldsUsed} / {getEffectiveMaxFields(selectedPlanet)}
             </span>
           </div>
 
@@ -1507,7 +1600,7 @@ export default function App() {
         <main className="flex-1 relative min-h-0 overflow-hidden">
           <AssetBackground src={backgroundImage(view)} overlayClassName="bg-slate-950/85" />
           <div className="relative z-10 h-full overflow-y-auto p-4 md:p-8 pb-20 md:pb-8">
-          <div className="max-w-4xl mx-auto space-y-8">
+          <div className="max-w-[1600px] mx-auto space-y-8">
             
             {/* 2a. VIEW: OVERVIEW */}
             {view === 'overview' && (
@@ -1569,6 +1662,18 @@ export default function App() {
                     <p className="text-xs text-blue-400 font-bold font-mono">
                       Position: Sektor [{selectedPlanet.system}:{selectedPlanet.slot}]
                     </p>
+                    {!selectedPlanet.isMoon
+                      && selectedPlanet.id !== PLAYER_HOME_PLANET_ID
+                      && planets.filter((p) => !p.isMoon).length > 1 && (
+                      <button
+                        onClick={handleAbandonPlanet}
+                        title="Diesen Planeten aufgeben (wird wieder besiedelbar; ein Mond geht mit verloren)"
+                        className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-950/50 border border-rose-800/50 text-rose-300 hover:bg-rose-900/50 hover:text-rose-200 transition-all cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        Planet aufgeben
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-1 font-mono text-xs text-slate-400">
@@ -1581,20 +1686,20 @@ export default function App() {
                   <div className="space-y-2 font-mono text-xs">
                     <div className="flex justify-between text-slate-400">
                       <span>Bebaute Felder:</span>
-                      <span className="text-slate-200 font-bold">{selectedPlanet.fieldsUsed} / {selectedPlanet.maxFields}</span>
+                      <span className="text-slate-200 font-bold">{selectedPlanet.fieldsUsed} / {getEffectiveMaxFields(selectedPlanet)}</span>
                     </div>
                     {/* Progress Bar */}
                     <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
                       <div
                         className="bg-blue-500 h-full rounded-full transition-all"
-                        style={{ width: `${(selectedPlanet.fieldsUsed / selectedPlanet.maxFields) * 100}%` }}
+                        style={{ width: `${(selectedPlanet.fieldsUsed / getEffectiveMaxFields(selectedPlanet)) * 100}%` }}
                       />
                     </div>
 
                     <div className="flex justify-between text-slate-400 pt-1.5 border-t border-slate-800/40 mt-1">
                       <span>Besiedelte Planeten:</span>
                       <span className="text-blue-400 font-bold">
-                        {planets.length} / {1 + Math.floor((player?.research.astrophysics || 0) / 2)}
+                        {planets.filter((p) => !p.isMoon).length} / {1 + Math.floor((player?.research.astrophysics || 0) / 2)}
                       </span>
                     </div>
                     <div className="text-[10px] text-slate-500 leading-snug">
@@ -1890,7 +1995,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {(selectedPlanet.isMoon
                     ? getBuildableBuildingsForBody(true)
                     : (['metalMine', 'crystalMine', 'deuteriumSynthesizer', 'solarPowerPlant', 'fusionPowerPlant', 'metalStorage', 'crystalStorage', 'deuteriumStorage'] as (keyof Buildings)[])
@@ -1910,7 +2015,7 @@ export default function App() {
                     const maxLvl = getMaxBuildingLevel(bKey);
                     const atMax = currentLvl + queuedUpgradesCount >= maxLvl;
                     const totalFieldsUsedWithQueue = selectedPlanet.fieldsUsed + activeQueue.length;
-                    const canAfford = hasEnoughResources(holder.resources, cost) && reqMet && !atMax && (totalFieldsUsedWithQueue < selectedPlanet.maxFields);
+                    const canAfford = hasEnoughResources(holder.resources, cost) && reqMet && !atMax && (totalFieldsUsedWithQueue < getEffectiveMaxFields(selectedPlanet));
                     const duration = getBuildingBuildDuration(bKey, upgradeLevel, selectedPlanet.buildings.roboticsFactory, state.speedMultiplier, selectedPlanet.buildings.naniteFactory || 0);
 
                     const isMineOrPowerPlant = ['metalMine', 'crystalMine', 'deuteriumSynthesizer', 'solarPowerPlant', 'fusionPowerPlant'].includes(bKey);
@@ -2025,7 +2130,7 @@ export default function App() {
                           {/* Mondbasis: Feld-Info */}
                           {bKey === 'mondbasis' && (
                             <div className="bg-slate-950/40 p-2.5 rounded-xl border border-slate-900/60 text-[11px] font-mono text-slate-400">
-                              Gibt +3 Baufelder je Stufe frei. Mondfelder: {selectedPlanet.fieldsUsed} / {selectedPlanet.maxFields}
+                              Gibt +3 Baufelder je Stufe frei. Mondfelder: {selectedPlanet.fieldsUsed} / {getEffectiveMaxFields(selectedPlanet)}
                             </div>
                           )}
 
@@ -2326,7 +2431,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {(selectedPlanet.isMoon
                     ? ([] as (keyof Buildings)[])
                     : (['roboticsFactory', 'naniteFactory', 'shipyard', 'researchLab', 'terraformer', 'missileSilo', 'moonCannon'] as (keyof Buildings)[])
@@ -2343,7 +2448,7 @@ export default function App() {
                     const maxLvl = getMaxBuildingLevel(bKey);
                     const atMax = currentLvl + queuedUpgradesCount >= maxLvl;
                     const totalFieldsUsedWithQueue = selectedPlanet.fieldsUsed + activeQueue.length;
-                    const canAfford = hasEnoughResources(holder.resources, cost) && reqMet && !atMax && (totalFieldsUsedWithQueue < selectedPlanet.maxFields);
+                    const canAfford = hasEnoughResources(holder.resources, cost) && reqMet && !atMax && (totalFieldsUsedWithQueue < getEffectiveMaxFields(selectedPlanet));
                     const duration = getBuildingBuildDuration(bKey, upgradeLevel, selectedPlanet.buildings.roboticsFactory, state.speedMultiplier, selectedPlanet.buildings.naniteFactory || 0);
 
                     return (
@@ -2512,7 +2617,7 @@ export default function App() {
                     Forschungslabor erforderlich! Erbaue zuerst ein Forschungslabor unter dem Reiter &quot;Anlagen&quot;, um forschen zu können.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {Object.keys(player?.research || {}).map((rKey) => {
                       const currentLvl = player?.research[rKey as keyof Research] || 0;
                       const activeQueue = player?.activeResearchQueue || [];
@@ -2655,7 +2760,7 @@ export default function App() {
                     Schiffswerft erforderlich! Erbaue zuerst eine Raumschiffswerft unter &quot;Anlagen&quot;, um Schiffe bauen zu können.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {Object.keys(SHIP_COSTS).map((sKey) => {
                       const cost = SHIP_COSTS[sKey as keyof Ships];
                       const countOnPlanet = selectedPlanet.ships[sKey as keyof Ships] || 0;
@@ -2674,7 +2779,8 @@ export default function App() {
                         cost,
                         selectedPlanet.buildings.shipyard,
                         selectedPlanet.buildings.roboticsFactory,
-                        state.speedMultiplier
+                        state.speedMultiplier,
+                        selectedPlanet.buildings.naniteFactory || 0
                       );
 
                       const canAfford = hasEnoughResources(selectedPlanet.resources, totalCost) && orderQty > 0 && reqMet;
@@ -2819,7 +2925,7 @@ export default function App() {
                     Schiffswerft erforderlich! Erbaue zuerst eine Raumschiffswerft unter &quot;Anlagen&quot;, um Verteidigungsanlagen errichten zu können.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {Object.keys(DEFENSE_COSTS).map((dKey) => {
                       const cost = DEFENSE_COSTS[dKey as keyof Defense];
                       const countOnPlanet = selectedPlanet.defense[dKey as keyof Defense] || 0;
@@ -2827,9 +2933,12 @@ export default function App() {
                       const req = DEFENSE_REQUIREMENTS[dKey as keyof Defense];
                       const reqMet = req ? isRequirementMet(req, selectedPlanet.buildings, player?.research || {} as any) : true;
 
-                      // Double check domes can only build 1 max
+                      // Schildkuppeln: max. 1 – vorhandene UND in der Warteschlange befindliche mitzählen.
                       const isDome = dKey === 'smallShieldDome' || dKey === 'largeShieldDome';
-                      const isMaxDome = isDome && countOnPlanet >= 1;
+                      const queuedDome = isDome
+                        ? selectedPlanet.activeShipyardQueue.filter((j) => j.type === 'defense' && j.target === dKey).reduce((a, j) => a + j.count, 0)
+                        : 0;
+                      const isMaxDome = isDome && (countOnPlanet + queuedDome) >= 1;
 
                       // Calculate cost for ordered quantity
                       const totalCost = {
@@ -2842,7 +2951,8 @@ export default function App() {
                         cost,
                         selectedPlanet.buildings.shipyard,
                         selectedPlanet.buildings.roboticsFactory,
-                        state.speedMultiplier
+                        state.speedMultiplier,
+                        selectedPlanet.buildings.naniteFactory || 0
                       );
 
                       const canAfford = hasEnoughResources(selectedPlanet.resources, totalCost) && orderQty > 0 && !isMaxDome && reqMet;
@@ -3114,6 +3224,7 @@ export default function App() {
                         className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-sm px-3 py-2 rounded-lg font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
                       >
                         <option value="transport">Transport</option>
+                        <option value="station">Stationieren</option>
                         <option value="attack">Angriff</option>
                         <option value="spy">Spionage</option>
                         <option value="colonize">Kolonisieren</option>
@@ -3164,33 +3275,77 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Cargo for Transport */}
-                  {manualMission === 'transport' && (
-                    <div className="space-y-2">
-                      <label className="block text-xs text-slate-300 font-bold font-mono">Ressourcen verladen:</label>
-                      <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
-                        {['metal', 'crystal', 'deuterium'].map((resType) => {
-                          const maxAvail = Math.floor(selectedPlanet.resources[resType as keyof Resources]);
-                          return (
-                            <div key={resType}>
-                              <label className="block text-[10px] text-slate-500 capitalize mb-1">{resType} (max {maxAvail.toLocaleString()})</label>
-                              <input
-                                type="number"
-                                min="0"
-                                max={maxAvail}
-                                value={manualCargo[resType as keyof Resources] || ''}
-                                onChange={(e) => {
-                                  const val = Math.min(maxAvail, Math.max(0, parseInt(e.target.value) || 0));
-                                  setManualCargo({ ...manualCargo, [resType]: val });
-                                }}
-                                className="w-full bg-slate-900 border border-slate-800 text-xs px-2 py-1 rounded font-mono text-slate-200"
-                              />
+                  {/* Flottenstatistik (Laderaum, Distanz, Flugzeit, Treibstoff) + Ressourcen mit Max-Button.
+                      Die Statistik ist für ALLE Missionen sichtbar; Frachteingabe nur für Transport/Stationieren. */}
+                  {(() => {
+                    const totalShips = (Object.values(manualShips) as number[]).reduce((a, b) => a + b, 0);
+                    if (totalShips === 0) return null;
+                    const dist = getDistance(selectedPlanet.system, selectedPlanet.slot, manualTargetSystem, manualTargetSlot);
+                    const cargoCapacity = getFleetCargoCapacity(manualShips);
+                    const fuelCost = getFlightFuelConsumption(manualShips, dist, 100);
+                    let minSpeed = Infinity;
+                    for (const [st, c] of Object.entries(manualShips)) {
+                      if ((c as number) > 0 && player) {
+                        const s = getShipSpeed(st as keyof Ships, player.research);
+                        if (s < minSpeed) minSpeed = s;
+                      }
+                    }
+                    const duration = getFlightDuration(dist, minSpeed, 100, state.speedMultiplier);
+                    const cargoUsed = manualCargo.metal + manualCargo.crystal + manualCargo.deuterium;
+                    const withCargo = manualMission === 'transport' || manualMission === 'station';
+                    const notEnoughFuel = selectedPlanet.resources.deuterium < fuelCost;
+                    return (
+                      <>
+                        <div className="text-xs font-mono text-slate-400 bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-wrap justify-between gap-3">
+                          <div>Distanz: <span className="text-slate-200">{dist.toLocaleString()} km</span></div>
+                          <div>Flugzeit: <span className="text-blue-400">{duration}s</span> (Rückflug: {manualMission === 'station' ? '—' : `${duration}s`})</div>
+                          <div>Laderaum: <span className="text-slate-200">{cargoUsed.toLocaleString()} / {cargoCapacity.toLocaleString()}</span></div>
+                          <div>Deuterium-Verbrauch: <span className={`font-bold ${notEnoughFuel ? 'text-rose-400' : 'text-amber-500'}`}>{fuelCost.toLocaleString()}</span></div>
+                        </div>
+                        {withCargo && (
+                          <div className="space-y-2">
+                            <label className="block text-xs text-slate-300 font-bold font-mono">Ressourcen verladen:</label>
+                            <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                              {(['metal', 'crystal', 'deuterium'] as (keyof Resources)[]).map((resType) => {
+                                const planetAvail = Math.floor(selectedPlanet.resources[resType]);
+                                const otherLoaded = (['metal', 'crystal', 'deuterium'] as (keyof Resources)[])
+                                  .filter((r) => r !== resType)
+                                  .reduce((a, r) => a + (manualCargo[r] || 0), 0);
+                                const freeCargo = Math.max(0, cargoCapacity - otherLoaded);
+                                // Deuterium: reservierten Treibstoff vom verfügbaren Bestand abziehen.
+                                const resAvail = resType === 'deuterium' ? Math.max(0, planetAvail - fuelCost) : planetAvail;
+                                const maxForRes = Math.min(freeCargo, resAvail);
+                                return (
+                                  <div key={resType}>
+                                    <label className="block text-[10px] text-slate-500 capitalize mb-1">{resType} (max {maxForRes.toLocaleString()})</label>
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={maxForRes}
+                                        value={manualCargo[resType] || ''}
+                                        onChange={(e) => {
+                                          const val = Math.min(maxForRes, Math.max(0, parseInt(e.target.value) || 0));
+                                          setManualCargo({ ...manualCargo, [resType]: val });
+                                        }}
+                                        className="w-full bg-slate-900 border border-slate-800 text-xs px-2 py-1 rounded font-mono text-slate-200"
+                                      />
+                                      <button
+                                        onClick={() => setManualCargo({ ...manualCargo, [resType]: maxForRes })}
+                                        className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-1.5 py-1 rounded cursor-pointer"
+                                      >
+                                        Max
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {/* Launch trigger button */}
                   <div className="flex justify-end pt-2">
@@ -3241,7 +3396,7 @@ export default function App() {
                       .sort((a, b) => b.points.total - a.points.total)
                       .map((p, idx) => {
                         const isSelf = p.id === 'player';
-                        const planetCount = state.planets.filter((pl) => pl.ownerId === p.id).length;
+                        const planetCount = state.planets.filter((pl) => pl.ownerId === p.id && !pl.isMoon).length;
                         const isEliminated = planetCount === 0;
 
                         return (

@@ -31,6 +31,7 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
     heavyFighter: 0,
     cruiser: 0,
     battleship: 0,
+    battlecruiser: 0,
     colonyShip: 0,
     recycler: 0,
     espionageProbe: 0,
@@ -65,6 +66,7 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
       heavyFighter: 0,
       cruiser: 0,
       battleship: 0,
+      battlecruiser: 0,
       colonyShip: 0,
       recycler: 0,
       espionageProbe: 0,
@@ -256,6 +258,22 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
                       <>
                         {isSelf ? (
                           <div className="flex items-center gap-1.5">
+                            {/* Transport zum eigenen Planeten */}
+                            <button
+                              onClick={() => handleOpenLaunch(slot, 'transport')}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] rounded-lg font-bold font-mono transition-all cursor-pointer"
+                              title="Ressourcen/Schiffe zum eigenen Planeten transportieren"
+                            >
+                              Transp.
+                            </button>
+                            {/* Flotte dauerhaft hier stationieren */}
+                            <button
+                              onClick={() => handleOpenLaunch(slot, 'station')}
+                              className="px-2 py-1 bg-blue-950/30 hover:bg-blue-900/40 text-blue-300 border border-blue-900/40 hover:border-blue-500/50 text-[11px] rounded-lg font-bold font-mono transition-all cursor-pointer"
+                              title="Flotte dauerhaft auf diesem Planeten stationieren"
+                            >
+                              Station.
+                            </button>
                             {planet.debris && planet.debris.metal + planet.debris.crystal > 0 && selectedPlanet.ships.recycler > 0 && (
                               <button
                                 onClick={() => handleOpenLaunch(slot, 'recycle')}
@@ -343,16 +361,20 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
 
                     {/* Mission Selector */}
                     <div className="flex gap-2">
-                      {(['spy', 'attack', 'transport', 'colonize', 'destroy', 'recycle'] as MissionType[]).map((m) => {
+                      {(['spy', 'attack', 'transport', 'station', 'colonize', 'destroy', 'recycle'] as MissionType[]).map((m) => {
                         // Check if mission makes sense
                         if (m === 'colonize' && planet) return null;
                         if (m === 'destroy' && (!planet || selectedPlanet.ships.deathStar < 10)) return null;
                         if (m === 'recycle' && ((planet?.debris?.metal || 0) + (planet?.debris?.crystal || 0) <= 0)) return null;
+                        // Stationieren nur auf eigenem Planeten; Angriff/Spionage gegen eigenen Planeten sinnlos.
+                        if (m === 'station' && !isSelf) return null;
+                        if ((m === 'spy' || m === 'attack') && isSelf) return null;
 
                         const labels: Record<MissionType, string> = {
                           spy: 'Spionage',
                           attack: 'Angriff',
                           transport: 'Transport',
+                          station: 'Stationieren',
                           colonize: 'Kolonisieren',
                           destroy: 'Planet vernichten',
                           recycle: 'Recyceln',
@@ -419,32 +441,48 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
                       )}
                     </div>
 
-                    {/* Cargo Loadout (for transport or loot) */}
-                    {selectedMission === 'transport' && activeShips > 0 && (
+                    {/* Cargo Loadout (Transport oder Stationieren) mit Max-Button je Ressource */}
+                    {(selectedMission === 'transport' || selectedMission === 'station') && activeShips > 0 && (
                       <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-3">
                         <div className="text-[11px] font-bold text-slate-300 font-mono">
-                          Fracht verladen: (Maximaler Laderaum:{' '}
-                          {getFleetCargoCapacity(shipsToSend).toLocaleString()})
+                          Fracht verladen: (Laderaum:{' '}
+                          {(cargo.metal + cargo.crystal + cargo.deuterium).toLocaleString()} / {getFleetCargoCapacity(shipsToSend).toLocaleString()})
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          {['metal', 'crystal', 'deuterium'].map((resType) => {
-                            const maxAvail = Math.floor(selectedPlanet.resources[resType as keyof Resources]);
+                          {(['metal', 'crystal', 'deuterium'] as (keyof Resources)[]).map((resType) => {
+                            const cargoCapacity = getFleetCargoCapacity(shipsToSend);
+                            const planetAvail = Math.floor(selectedPlanet.resources[resType]);
+                            const otherLoaded = (['metal', 'crystal', 'deuterium'] as (keyof Resources)[])
+                              .filter((r) => r !== resType)
+                              .reduce((a, r) => a + (cargo[r] || 0), 0);
+                            const freeCargo = Math.max(0, cargoCapacity - otherLoaded);
+                            // Deuterium: reservierten Treibstoff vom verfügbaren Bestand abziehen.
+                            const resAvail = resType === 'deuterium' ? Math.max(0, planetAvail - fuelCost) : planetAvail;
+                            const maxForRes = Math.min(freeCargo, resAvail);
                             return (
                               <div key={resType}>
                                 <label className="block text-[10px] text-slate-500 capitalize mb-1">
-                                  {resType} (max {maxAvail.toLocaleString()})
+                                  {resType} (max {maxForRes.toLocaleString()})
                                 </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={maxAvail}
-                                  value={cargo[resType as keyof Resources] || ''}
-                                  onChange={(e) => {
-                                    const val = Math.min(maxAvail, Math.max(0, parseInt(e.target.value) || 0));
-                                    setCargo({ ...cargo, [resType]: val });
-                                  }}
-                                  className="w-full bg-slate-950 border border-slate-800 text-xs px-2 py-1 rounded font-mono text-slate-200"
-                                />
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={maxForRes}
+                                    value={cargo[resType] || ''}
+                                    onChange={(e) => {
+                                      const val = Math.min(maxForRes, Math.max(0, parseInt(e.target.value) || 0));
+                                      setCargo({ ...cargo, [resType]: val });
+                                    }}
+                                    className="w-full bg-slate-950 border border-slate-800 text-xs px-2 py-1 rounded font-mono text-slate-200"
+                                  />
+                                  <button
+                                    onClick={() => setCargo({ ...cargo, [resType]: maxForRes })}
+                                    className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-1.5 py-1 rounded cursor-pointer"
+                                  >
+                                    Max
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
@@ -456,7 +494,7 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
                     {activeShips > 0 && (
                       <div className="text-xs font-mono text-slate-500 bg-slate-900/30 p-3 rounded-xl border border-slate-800 flex flex-wrap justify-between gap-4">
                         <div>Distanz: <span className="text-slate-300">{distance.toLocaleString()} km</span></div>
-                        <div>Flugzeit: <span className="text-blue-400">{durationSeconds}s</span> (Rückflug: {durationSeconds}s)</div>
+                        <div>Flugzeit: <span className="text-blue-400">{durationSeconds}s</span> (Rückflug: {selectedMission === 'station' ? '—' : `${durationSeconds}s`})</div>
                         <div>Deuterium-Verbrauch: <span className="text-amber-500">{fuelCost}</span></div>
                       </div>
                     )}

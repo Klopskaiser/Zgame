@@ -36,6 +36,7 @@ import {
   SHIP_REQUIREMENTS,
   DEFENSE_REQUIREMENTS,
   getMoonMaxFields,
+  getEffectiveMaxFields,
   getMoonDiameter,
   getMatterConverterMetalInput,
   getMatterConverterEnergyConsumption,
@@ -60,7 +61,7 @@ export function emptyBuildings(): Buildings {
 export function emptyShips(): Ships {
   return {
     smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0,
-    colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0,
+    battlecruiser: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0,
   };
 }
 
@@ -347,6 +348,7 @@ export function generateUniverse(speedMultiplier: number, isDebugMode: boolean =
           heavyFighter: isDebugAI ? 15 : 0,
           cruiser: isDebugAI ? 10 : 0,
           battleship: isDebugAI ? 6 : 0,
+          battlecruiser: isDebugAI ? 4 : 0,
           colonyShip: 0,
           recycler: 0,
           espionageProbe: ownerId ? 1 : 0,
@@ -449,6 +451,9 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
   // 1. SIMULATE BUILDING CONSTRUCTION AND RESOURCES FOR PLANETS
   for (const planet of planets) {
     let secondsToSimulate = deltaSeconds;
+    // Bestand zu Tick-Beginn: dient als weiche Obergrenze. Lieferungen (Transport etc.) dürfen die
+    // Lager überfüllen; die Produktion füllt nur bis zur Lagerkapazität und stoppt dann (kein hartes Cap).
+    const startRes = { metal: planet.resources.metal, crystal: planet.resources.crystal, deuterium: planet.resources.deuterium };
     const owner = planet.ownerId ? playerMap.get(planet.ownerId) : null;
     const energyTechLevel = owner?.research.energy || 0;
     const converterExtra = converterConsumptionByPlanet.get(planet.id) || 0;
@@ -519,11 +524,16 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
       planet.resources.deuterium += (hourlyProd.deuterium / 3600) * secondsToSimulate;
     }
 
-    // Round resource fractions to 1 decimal place to prevent floating-point representation bugs and cap to maximum storage capacity
+    // Rundung auf 1 Nachkommastelle + WEICHER Lager-Cap: die effektive Obergrenze ist das Maximum aus
+    // Lagerkapazität und dem Bestand zu Tick-Beginn. So stoppt die Minenproduktion bei voller Lagerung,
+    // eine bereits vorhandene Überfüllung (z.B. durch Lieferungen) wird aber nicht abgeschnitten.
     const caps = getPlanetStorageCapacities(planet.buildings);
-    planet.resources.metal = Math.min(caps.metal, Math.max(0, parseFloat(planet.resources.metal.toFixed(1))));
-    planet.resources.crystal = Math.min(caps.crystal, Math.max(0, parseFloat(planet.resources.crystal.toFixed(1))));
-    planet.resources.deuterium = Math.min(caps.deuterium, Math.max(0, parseFloat(planet.resources.deuterium.toFixed(1))));
+    const softCapM = Math.max(caps.metal, startRes.metal);
+    const softCapC = Math.max(caps.crystal, startRes.crystal);
+    const softCapD = Math.max(caps.deuterium, startRes.deuterium);
+    planet.resources.metal = Math.min(softCapM, Math.max(0, parseFloat(planet.resources.metal.toFixed(1))));
+    planet.resources.crystal = Math.min(softCapC, Math.max(0, parseFloat(planet.resources.crystal.toFixed(1))));
+    planet.resources.deuterium = Math.min(softCapD, Math.max(0, parseFloat(planet.resources.deuterium.toFixed(1))));
     planet.lastResourceUpdate = currentTimestamp;
 
     // 2. SIMULATE SHIPYARD (SHIPS & DEFENSES) FOR PLANETS
@@ -601,6 +611,9 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
       moon.resources = { metal: 0, crystal: 0, deuterium: 0 };
     }
 
+    // Halter-Bestand vor Umwandler-Produktion: dient als weiche Obergrenze (analog zu den Planetenminen).
+    const holderStart = { metal: holder.resources.metal, crystal: holder.resources.crystal, deuterium: holder.resources.deuterium };
+
     // Materieumwandler: wandelt Metall des Halters in Kristall/Deuterium um.
     // Der Energieverbrauch fließt in die Energiebilanz des Elternplaneten ein: der resultierende
     // gemeinsame ratio drosselt sowohl die Planetenminen (in Schritt 1) als auch diesen Durchsatz.
@@ -627,11 +640,15 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
       }
     }
 
-    // Halter-Ressourcen auf Lagerkapazität begrenzen (bei Pool die des Planeten, sonst des Mondes)
+    // Weicher Lager-Cap für den Halter (bei Pool der Planet, sonst der Mond): Obergrenze = max(Lager,
+    // Bestand vor Umwandler). Umwandler-Produktion stoppt bei vollem Lager, Überfüllung bleibt erhalten.
     const holderCaps = getPlanetStorageCapacities(holder.buildings);
-    holder.resources.metal = Math.min(holderCaps.metal, Math.max(0, parseFloat(holder.resources.metal.toFixed(1))));
-    holder.resources.crystal = Math.min(holderCaps.crystal, Math.max(0, parseFloat(holder.resources.crystal.toFixed(1))));
-    holder.resources.deuterium = Math.min(holderCaps.deuterium, Math.max(0, parseFloat(holder.resources.deuterium.toFixed(1))));
+    const hSoftM = Math.max(holderCaps.metal, holderStart.metal);
+    const hSoftC = Math.max(holderCaps.crystal, holderStart.crystal);
+    const hSoftD = Math.max(holderCaps.deuterium, holderStart.deuterium);
+    holder.resources.metal = Math.min(hSoftM, Math.max(0, parseFloat(holder.resources.metal.toFixed(1))));
+    holder.resources.crystal = Math.min(hSoftC, Math.max(0, parseFloat(holder.resources.crystal.toFixed(1))));
+    holder.resources.deuterium = Math.min(hSoftD, Math.max(0, parseFloat(holder.resources.deuterium.toFixed(1))));
   }
 
   // 4. SIMULATE FLEETS IN FLIGHT & RE-CALCULATE ARRIVALS
@@ -682,7 +699,8 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
             if (targetPlanet.ownerId === null) {
               // Check Astrophysics requirements for colonization:
               // Max colonies = astrophysics level. Let's count current colonies of the player
-              const playerColonies = planets.filter(p => p.ownerId === fleetClone.ownerId).length;
+              // Monde zählen NICHT zum Planetenlimit
+              const playerColonies = planets.filter(p => p.ownerId === fleetClone.ownerId && !p.isMoon).length;
               const astrophysicsLvl = fleetOwner.research.astrophysics;
               const maxColonies = 1 + Math.floor(astrophysicsLvl / 2); // OGame formula approximation
 
@@ -828,6 +846,28 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
             fleetClone.departureTime = fleetClone.arrivalTime;
             fleetClone.returnTime = fleetClone.arrivalTime + duration * 1000;
             activeFleets.push(fleetClone);
+          } else if (fleetClone.mission === 'station') {
+            // Stationieren: Schiffe (und ggf. mitgeführte Fracht) bleiben DAUERHAFT auf dem Zielplaneten;
+            // kein Rückflug. Nur auf einem eigenen Planeten sinnvoll – sonst kehrt die Flotte samt Ladung zurück.
+            if (targetPlanet.ownerId === fleetClone.ownerId) {
+              for (const [shipType, count] of Object.entries(fleetClone.ships)) {
+                targetPlanet.ships[shipType as keyof Ships] += count;
+              }
+              targetPlanet.resources.metal += fleetClone.resources.metal;
+              targetPlanet.resources.crystal += fleetClone.resources.crystal;
+              targetPlanet.resources.deuterium += fleetClone.resources.deuterium;
+              if (fleetClone.ownerId === 'player') {
+                pushMoonAttemptLog(combatLog, targetPlanet, fleetOwner.name, `Flotte bei ${targetPlanet.system}:${targetPlanet.slot} stationiert.`, currentTimestamp);
+              }
+              // KEIN activeFleets.push → Flotte verschwindet dauerhaft (bleibt als Bestand auf dem Zielplaneten).
+            } else {
+              // Zielplanet gehört (nicht mehr) dem Flottenbesitzer → Rückflug mit Ladung.
+              fleetClone.isReturning = true;
+              const duration = Math.round((fleetClone.arrivalTime - fleetClone.departureTime) / 1000);
+              fleetClone.departureTime = fleetClone.arrivalTime;
+              fleetClone.returnTime = fleetClone.arrivalTime + duration * 1000;
+              activeFleets.push(fleetClone);
+            }
           } else if (fleetClone.mission === 'attack' || fleetClone.mission === 'destroy') {
             // RUN COMBAT ENGINE!
             const defenderOwnerName = targetPlanet.ownerId ? (playerMap.get(targetPlanet.ownerId)?.name || 'KI') : 'Unbewohnt';
@@ -912,7 +952,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
                 matterConverter: 0,
                 jumpGate: 0,
               };
-              targetPlanet.ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
+              targetPlanet.ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, battlecruiser: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
               targetPlanet.defense = { rocketLauncher: 0, lightLaser: 0, heavyLaser: 0, gaussCannon: 0, ionCannon: 0, plasmaTurret: 0, smallShieldDome: 0, largeShieldDome: 0 };
               targetPlanet.resources = { metal: 50000, crystal: 35000, deuterium: 10000 }; // Convert into rich debris field/resources
               targetPlanet.fieldsUsed = 0;
@@ -1433,7 +1473,7 @@ function countTypes(units: SimulatedUnit[]): Record<string, number> {
 }
 
 function countShips(units: SimulatedUnit[]): Ships {
-  const s: Ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
+  const s: Ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, battlecruiser: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
   for (const u of units) {
     if (!u.isDefense && u.type in s) {
       s[u.type as keyof Ships]++;
@@ -1586,7 +1626,7 @@ export function runAILogic(state: GameState): GameState {
       // wählen, die (a) auf diesem Körper baubar ist (canBuildOnBody), (b) noch unter ihrem
       // Ziellevel liegt und (c) bezahlbar ist. Dadurch stallt die KI nie mehr auf einem einzelnen
       // zu teuren Ziel, sondern macht immer den höchstpriorisierten bezahlbaren Fortschritt.
-      if (canAct && !actionTaken && !planet.activeBuildJob && planet.fieldsUsed < planet.maxFields) {
+      if (canAct && !actionTaken && !planet.activeBuildJob && planet.fieldsUsed < getEffectiveMaxFields(planet)) {
         const { ratio } = getEnergyStatus(
           planet.buildings,
           planet.ships.solarSatellite || 0,
@@ -1598,7 +1638,7 @@ export function runAILogic(state: GameState): GameState {
         const caps = getPlanetStorageCapacities(planet.buildings);
         const b = planet.buildings;
         const parentP = planet.parentPlanetId ? newState.planets.find(p => p.id === planet.parentPlanetId) : null;
-        const fieldsTight = planet.fieldsUsed >= planet.maxFields - 2;
+        const fieldsTight = planet.fieldsUsed >= getEffectiveMaxFields(planet) - 2;
 
         const candidates: { key: keyof Buildings; targetLevel: number }[] = [];
 
@@ -1619,9 +1659,16 @@ export function runAILogic(state: GameState): GameState {
           if (fieldsTight) candidates.push({ key: 'terraformer', targetLevel: 15 });
 
           // A. Speicher, wenn eine Ressource die Kapazität zu füllen droht (verhindert Produktionsverlust).
-          if (planet.resources.metal > caps.metal * 0.85) candidates.push({ key: 'metalStorage', targetLevel: 40 });
-          if (planet.resources.crystal > caps.crystal * 0.85) candidates.push({ key: 'crystalStorage', targetLevel: 40 });
-          if (planet.resources.deuterium > caps.deuterium * 0.85) candidates.push({ key: 'deuteriumStorage', targetLevel: 40 });
+          //    Schwelle gesenkt (0.70) für früheres Reagieren, damit Kolonien nicht chronisch überlaufen.
+          if (planet.resources.metal > caps.metal * 0.70) candidates.push({ key: 'metalStorage', targetLevel: 40 });
+          if (planet.resources.crystal > caps.crystal * 0.70) candidates.push({ key: 'crystalStorage', targetLevel: 40 });
+          if (planet.resources.deuterium > caps.deuterium * 0.70) candidates.push({ key: 'deuteriumStorage', targetLevel: 40 });
+
+          // A2. Speicher proaktiv an das Minen-Niveau koppeln (unabhängig vom aktuellen Füllstand):
+          //     lässt Speicher mit der Produktion mitwachsen, statt erst bei drohendem Überlauf zu reagieren.
+          if (b.metalStorage < Math.min(40, metalLvl - 3)) candidates.push({ key: 'metalStorage', targetLevel: 40 });
+          if (b.crystalStorage < Math.min(40, crystalLvl - 3)) candidates.push({ key: 'crystalStorage', targetLevel: 40 });
+          if (b.deuteriumStorage < Math.min(40, deutLvl - 3)) candidates.push({ key: 'deuteriumStorage', targetLevel: 40 });
 
           // B. Energie: nur wenn tatsächlich Energiemangel besteht (ratio < 0.98).
           if (ratio < 0.98) {
@@ -1763,19 +1810,24 @@ export function runAILogic(state: GameState): GameState {
             const cost = DEFENSE_COSTS[defType];
             const req = DEFENSE_REQUIREMENTS[defType];
 
-            // Limit domes to 1
-            if (defType === 'smallShieldDome' && planet.defense.smallShieldDome >= 1) continue;
-            if (defType === 'largeShieldDome' && planet.defense.largeShieldDome >= 1) continue;
+            // Schildkuppeln: max. 1 pro Planet – vorhandene UND bereits eingereihte Kuppeln mitzählen.
+            const isDome = defType === 'smallShieldDome' || defType === 'largeShieldDome';
+            if (isDome) {
+              const queuedDome = planet.activeShipyardQueue
+                .filter(j => j.type === 'defense' && j.target === defType)
+                .reduce((a, j) => a + j.count, 0);
+              if ((planet.defense[defType] || 0) + queuedDome >= 1) continue;
+            }
 
             if (isRequirementMet(req, planet.buildings, ai.research) && hasEnoughResources(planet.resources, cost)) {
-              // Build as many as we can afford, up to 10
+              // Build as many as we can afford, up to 10 (Kuppeln jedoch nur 1).
               const maxAffordable = Math.min(
                 10,
                 cost.metal ? Math.floor(planet.resources.metal / cost.metal) : Infinity,
                 cost.crystal ? Math.floor(planet.resources.crystal / cost.crystal) : Infinity,
                 cost.deuterium ? Math.floor(planet.resources.deuterium / cost.deuterium) : Infinity
               );
-              const qty = Math.max(1, maxAffordable);
+              const qty = isDome ? 1 : Math.max(1, maxAffordable);
 
               const totalCost = {
                 metal: cost.metal * qty,
@@ -1809,7 +1861,7 @@ export function runAILogic(state: GameState): GameState {
         const colCount = planet.ships.colonyShip;
         const astrophysicsLvl = ai.research.astrophysics;
         const maxColonies = 1 + Math.floor(astrophysicsLvl / 2);
-        const playerColonies = aiPlanets.length;
+        const playerColonies = aiPlanets.filter(p => !p.isMoon).length; // Monde zählen nicht zum Limit
 
         if (canAct && !actionTaken && colCount === 0 && playerColonies < maxColonies && planet.buildings.shipyard >= 4) {
           const cost = SHIP_COSTS.colonyShip;
@@ -1922,8 +1974,8 @@ export function runAILogic(state: GameState): GameState {
         // C. Build Military Ships (dynamic list)
         // Vor dem Todesstern das Budget auf möglichst große Kampfschiffe (+ Fracht für Loot) konzentrieren.
         const shipTypesByPriority: (keyof Ships)[] = deathStarReady
-          ? ['destroyer', 'bomber', 'battleship', 'cruiser', 'largeCargo']
-          : ['deathStar', 'destroyer', 'bomber', 'battleship', 'cruiser', 'heavyFighter', 'lightFighter', 'largeCargo', 'smallCargo'];
+          ? ['destroyer', 'battlecruiser', 'bomber', 'battleship', 'cruiser', 'largeCargo']
+          : ['deathStar', 'destroyer', 'battlecruiser', 'bomber', 'battleship', 'cruiser', 'heavyFighter', 'lightFighter', 'largeCargo', 'smallCargo'];
         let shipQueued = false;
 
         for (const sType of shipTypesByPriority) {
@@ -1981,9 +2033,13 @@ export function runAILogic(state: GameState): GameState {
           const cost = DEFENSE_COSTS[defType];
           const req = DEFENSE_REQUIREMENTS[defType];
 
-          // Limit domes to 1
-          if (defType === 'smallShieldDome' && planet.defense.smallShieldDome >= 1) continue;
-          if (defType === 'largeShieldDome' && planet.defense.largeShieldDome >= 1) continue;
+          // Schildkuppeln: max. 1 pro Planet – vorhandene UND bereits in der Werft eingereihte mitzählen.
+          if (defType === 'smallShieldDome' || defType === 'largeShieldDome') {
+            const queuedDome = planet.activeShipyardQueue
+              .filter(j => j.type === 'defense' && j.target === defType)
+              .reduce((a, j) => a + j.count, 0);
+            if ((planet.defense[defType] || 0) + queuedDome >= 1) continue;
+          }
 
           // Don't overbuild under normal conditions (Domes bleiben auf 1 begrenzt, s. o.)
           const currentCount = planet.defense[defType] || 0;
@@ -2108,7 +2164,7 @@ export function runAILogic(state: GameState): GameState {
           targetSystem: target.system,
           targetSlot: target.slot,
           mission: 'colonize',
-          ships: { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, colonyShip: 1, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 },
+          ships: { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, battlecruiser: 0, colonyShip: 1, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 },
           resources: { metal: 0, crystal: 0, deuterium: 0 },
           departureTime: departure,
           arrivalTime: arrival,
@@ -2166,7 +2222,7 @@ export function runAILogic(state: GameState): GameState {
             if (playerTarget) target = playerTarget;
           }
 
-          const shipsToSend: Ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
+          const shipsToSend: Ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, battlecruiser: 0, colonyShip: 0, recycler: 0, espionageProbe: 0, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
           let combatShipsCount = 0;
 
           // Send 80% of combat ships (keep 20% for home defense)
@@ -2245,7 +2301,7 @@ export function runAILogic(state: GameState): GameState {
         if (targets.length > 0) {
           const target = targets[Math.floor(Math.random() * targets.length)];
           probePlanet.ships.espionageProbe -= 1;
-          const probeShips: Ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, colonyShip: 0, recycler: 0, espionageProbe: 1, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
+          const probeShips: Ships = { smallCargo: 0, largeCargo: 0, lightFighter: 0, heavyFighter: 0, cruiser: 0, battleship: 0, battlecruiser: 0, colonyShip: 0, recycler: 0, espionageProbe: 1, bomber: 0, destroyer: 0, deathStar: 0, solarSatellite: 0 };
           const dist = getDistance(probePlanet.system, probePlanet.slot, target.system, target.slot);
           const maxSpeed = getShipSpeed('espionageProbe', ai.research);
           const duration = getFlightDuration(dist, maxSpeed, 100, speedMult);
