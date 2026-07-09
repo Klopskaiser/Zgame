@@ -230,6 +230,9 @@ export default function App() {
   const [renameValue, setRenameValue] = useState<string>('');
   const [hasSave, setHasSave] = useState<boolean>(false);
   const [showOfflineModal, setShowOfflineModal] = useState<boolean>(false);
+  // Abriss-Bestätigung: welches Gebäude soll abgerissen werden (null = keine Abfrage offen).
+  // Eigene Modal statt window.confirm, da der native Dialog vom Browser dauerhaft unterdrückt werden kann.
+  const [demolishTarget, setDemolishTarget] = useState<keyof Buildings | null>(null);
   const [offlineDetails, setOfflineDetails] = useState<{ hours: number; mins: number; secs: number } | null>(null);
   const [activeTab, setActiveTab] = useState<string>('buildings'); // sub-tab for resources/facilities
 
@@ -791,9 +794,6 @@ export default function App() {
     if (!state || !selectedPlanet) return;
     const currentLvl = selectedPlanet.buildings[bKey];
     if (currentLvl <= 0) return;
-
-    const confirmMessage = `Möchtest du ${BUILDING_NAMES[bKey]} wirklich um eine Stufe abreißen? Dadurch sinkt die Stufe von ${currentLvl} auf ${currentLvl - 1}, und es wird 1 Feld freigegeben. Kosten: 25% der Baukosten.`;
-    if (!window.confirm(confirmMessage)) return;
 
     const fullCost = getBuildingUpgradeCost(bKey, currentLvl - 1, player?.research.materialScience || 0);
     const demolishCost = {
@@ -2239,7 +2239,7 @@ export default function App() {
 
                           {currentLvl > 0 && (
                             <button
-                              onClick={() => handleDemolishBuilding(bKey)}
+                              onClick={() => setDemolishTarget(bKey)}
                               title={`${BUILDING_NAMES[bKey]} abreißen`}
                               className="px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 border border-rose-950 hover:border-rose-500/50 bg-rose-950/10 hover:bg-rose-950/30 transition-all text-xs font-bold font-mono cursor-pointer"
                             >
@@ -2547,7 +2547,7 @@ export default function App() {
 
                           {currentLvl > 0 && (
                             <button
-                              onClick={() => handleDemolishBuilding(bKey)}
+                              onClick={() => setDemolishTarget(bKey)}
                               title={`${BUILDING_NAMES[bKey]} abreißen`}
                               className="px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 border border-rose-950 hover:border-rose-500/50 bg-rose-950/10 hover:bg-rose-950/30 transition-all text-xs font-bold font-mono cursor-pointer"
                             >
@@ -3480,6 +3480,70 @@ export default function App() {
 
       {/* 3. OFFLINE SIMULATION MODAL */}
       <AnimatePresence>
+        {demolishTarget && selectedPlanet && selectedPlanet.buildings[demolishTarget] > 0 && (() => {
+          const bKey = demolishTarget;
+          const currentLvl = selectedPlanet.buildings[bKey];
+          const fullCost = getBuildingUpgradeCost(bKey, currentLvl - 1, player?.research.materialScience || 0);
+          const demolishCost = {
+            metal: Math.floor(fullCost.metal * 0.25),
+            crystal: Math.floor(fullCost.crystal * 0.25),
+            deuterium: Math.floor(fullCost.deuterium * 0.25),
+          };
+          const holder = getResourceHolder(selectedPlanet) || selectedPlanet;
+          const affordable = hasEnoughResources(holder.resources, demolishCost);
+          return (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-slate-900 border border-rose-900/60 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-[0_10px_50px_rgba(0,0,0,0.5)]"
+              >
+                <div className="flex items-center gap-3">
+                  <ShieldAlert className="w-8 h-8 text-rose-400" />
+                  <div>
+                    <h3 className="font-bold text-slate-100 font-mono">Gebäude abreißen?</h3>
+                    <p className="text-xs text-slate-500">{BUILDING_NAMES[bKey]} auf {selectedPlanet.name}</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono space-y-2 text-slate-300">
+                  <p>
+                    Stufe sinkt von <span className="text-slate-100 font-bold">{currentLvl}</span> auf{' '}
+                    <span className="text-rose-400 font-bold">{currentLvl - 1}</span> · 1 Feld wird frei.
+                  </p>
+                  <div className="h-px bg-slate-800 my-1" />
+                  <p className="text-slate-400 text-[11px]">Abrisskosten (25% der Baukosten):</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                    <span>Metall: <span className="text-slate-200">{demolishCost.metal.toLocaleString()}</span></span>
+                    <span>Kristall: <span className="text-slate-200">{demolishCost.crystal.toLocaleString()}</span></span>
+                    <span>Deuterium: <span className="text-slate-200">{demolishCost.deuterium.toLocaleString()}</span></span>
+                  </div>
+                  {!affordable && (
+                    <p className="text-rose-400 text-[11px] font-semibold pt-1">Nicht genügend Ressourcen für den Abriss!</p>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDemolishTarget(null)}
+                    className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition-all cursor-pointer"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    disabled={!affordable}
+                    onClick={() => { handleDemolishBuilding(bKey); setDemolishTarget(null); }}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow-lg hover:shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all cursor-pointer"
+                  >
+                    Abreißen
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+
         {showOfflineModal && offlineDetails && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
             <motion.div

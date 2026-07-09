@@ -83,13 +83,28 @@ export function emptyResearch(): Research {
 // Migriert einen (ggf. alten) Spielstand: füllt neue Building-/Research-Keys mit Defaults auf,
 // normalisiert Mond-Felder und setzt die Version. Defensiv – verändert bestehende Werte nicht.
 export function migrateState(state: GameState): GameState {
+  // Zähl-Objekte defensiv mergen: fehlende Keys (z.B. das neue Schiff battlecruiser in alten Ständen)
+  // mit Default 0 auffüllen UND ungültige Werte (undefined/NaN) auf 0 normalisieren. Letzteres heilt
+  // auch bereits beschädigte Stände, bei denen ein `undefined++` zuvor NaN erzeugt hat.
+  const sanitize = <T extends object>(empty: T, obj: unknown): T => {
+    const src = (obj as Record<string, unknown>) || {};
+    const def = empty as Record<string, number>;
+    const out: Record<string, number> = {};
+    for (const k of Object.keys(def)) {
+      const v = src[k];
+      out[k] = typeof v === 'number' && Number.isFinite(v) ? v : def[k];
+    }
+    return out as T;
+  };
   const players = state.players.map(p => ({
     ...p,
-    research: { ...emptyResearch(), ...p.research },
+    research: sanitize(emptyResearch(), p.research),
   }));
   const planets = state.planets.map(p => ({
     ...p,
-    buildings: { ...emptyBuildings(), ...p.buildings },
+    buildings: sanitize(emptyBuildings(), p.buildings),
+    ships: sanitize(emptyShips(), p.ships),
+    defense: sanitize(emptyDefense(), p.defense),
     moonId: p.moonId ?? null,
   }));
   return { ...state, players, planets, version: GAME_VERSION };
@@ -545,11 +560,13 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
         // At least one item in the job is finished!
         yardSeconds -= currentJob.durationRemainingInCurrent;
 
-        // Add 1 to ships or defenses
+        // Add 1 to ships or defenses (defensiv: fehlender/NaN-Bestand zählt als 0, nie undefined++ -> NaN)
         if (currentJob.type === 'ship') {
-          planet.ships[currentJob.target as keyof Ships]++;
+          const t = currentJob.target as keyof Ships;
+          planet.ships[t] = (planet.ships[t] || 0) + 1;
         } else {
-          planet.defense[currentJob.target as keyof Defense]++;
+          const t = currentJob.target as keyof Defense;
+          planet.defense[t] = (planet.defense[t] || 0) + 1;
         }
 
         currentJob.count--;
@@ -660,7 +677,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
   let dbgSeq = 0;
   const pushFleetDebugLog = (playerId: string, playerName: string, category: DebugLogEntry['category'], message: string) => {
     if (!state.debugMode || !debugLog) return;
-    debugLog.push({ id: `dbg_${Date.now()}_${dbgSeq++}`, timestamp: Date.now(), playerId, playerName, category, message });
+    debugLog.push({ id: `dbg_a_${Date.now()}_${dbgSeq++}_${Math.random().toString(36).slice(2)}`, timestamp: Date.now(), playerId, playerName, category, message });
     if (debugLog.length > DEBUG_LOG_CAP) debugLog.splice(0, debugLog.length - DEBUG_LOG_CAP);
   };
 
@@ -785,7 +802,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
             }
 
             // Create combat log for spying
-            const logId = `spy_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const logId = `spy_${Date.now()}_${Math.random().toString(36).slice(2)}`;
             const log: CombatLog = {
               id: logId,
               timestamp: currentTimestamp,
@@ -851,7 +868,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
             // kein Rückflug. Nur auf einem eigenen Planeten sinnvoll – sonst kehrt die Flotte samt Ladung zurück.
             if (targetPlanet.ownerId === fleetClone.ownerId) {
               for (const [shipType, count] of Object.entries(fleetClone.ships)) {
-                targetPlanet.ships[shipType as keyof Ships] += count;
+                targetPlanet.ships[shipType as keyof Ships] = (targetPlanet.ships[shipType as keyof Ships] || 0) + count;
               }
               targetPlanet.resources.metal += fleetClone.resources.metal;
               targetPlanet.resources.crystal += fleetClone.resources.crystal;
@@ -883,7 +900,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
 
             // Create combat log (beteiligte Einheiten je Seite: Bestand vorher → übrig).
             // WICHTIG: Initialbestände hier erfassen, BEVOR targetPlanet.ships/defense unten überschrieben werden.
-            const logId = `combat_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const logId = `combat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
             const log: CombatLog = {
               id: logId,
               timestamp: currentTimestamp,
@@ -1017,7 +1034,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
         if (originPlanet) {
           // Add ships back
           for (const [shipType, count] of Object.entries(fleetClone.ships)) {
-            originPlanet.ships[shipType as keyof Ships] += count;
+            originPlanet.ships[shipType as keyof Ships] = (originPlanet.ships[shipType as keyof Ships] || 0) + count;
           }
           // Add loot back
           originPlanet.resources.metal += fleetClone.resources.metal;
@@ -1049,15 +1066,15 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
           buildingsPt += (cost.metal + cost.crystal + cost.deuterium) / 1000;
         }
       }
-      // Fleet points (1 point per 1000 resources)
+      // Fleet points (1 point per 1000 resources) – defensiv gegen fehlende Cost/NaN-Bestände.
       for (const [sType, count] of Object.entries(p.ships)) {
         const cost = SHIP_COSTS[sType as keyof Ships];
-        fleetPt += (count * (cost.metal + cost.crystal + cost.deuterium)) / 1000;
+        if (cost) fleetPt += ((count || 0) * (cost.metal + cost.crystal + cost.deuterium)) / 1000;
       }
       // Defense points (1 point per 1000 resources)
       for (const [dType, count] of Object.entries(p.defense)) {
         const cost = DEFENSE_COSTS[dType as keyof Defense];
-        defensePt += (count * (cost.metal + cost.crystal + cost.deuterium)) / 1000;
+        if (cost) defensePt += ((count || 0) * (cost.metal + cost.crystal + cost.deuterium)) / 1000;
       }
     });
 
@@ -1066,7 +1083,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
     playerFleets.forEach(f => {
       for (const [sType, count] of Object.entries(f.ships)) {
         const cost = SHIP_COSTS[sType as keyof Ships];
-        fleetPt += (count * (cost.metal + cost.crystal + cost.deuterium)) / 1000;
+        if (cost) fleetPt += ((count || 0) * (cost.metal + cost.crystal + cost.deuterium)) / 1000;
       }
     });
 
@@ -1553,7 +1570,7 @@ function pushDebugLog(
   if (!state.debugMode) return;
   if (!state.debugLog) state.debugLog = [];
   state.debugLog.push({
-    id: `dbg_${Date.now()}_${seq.n++}`,
+    id: `dbg_b_${Date.now()}_${seq.n++}_${Math.random().toString(36).slice(2)}`,
     timestamp: Date.now(),
     playerId,
     playerName,
@@ -1732,7 +1749,7 @@ export function runAILogic(state: GameState): GameState {
           );
 
           const buildJob: BuildJob = {
-            id: `ai_build_${Date.now()}_${seq.n}`,
+            id: `ai_build_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
             type: 'building',
             target: targetBuilding,
             level: nextLevel,
@@ -1841,7 +1858,7 @@ export function runAILogic(state: GameState): GameState {
                 planet.resources.deuterium -= totalCost.deuterium;
                 const duration = getShipyardBuildDuration(cost, planet.buildings.shipyard, planet.buildings.roboticsFactory, speedMult, planet.buildings.naniteFactory || 0);
                 planet.activeShipyardQueue.push({
-                  id: `ai_def_${Date.now()}_${seq.n}`,
+                  id: `ai_def_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
                   type: 'defense',
                   target: defType,
                   count: qty,
@@ -1972,13 +1989,23 @@ export function runAILogic(state: GameState): GameState {
         }
 
         // C. Build Military Ships (dynamic list)
-        // Vor dem Todesstern das Budget auf möglichst große Kampfschiffe (+ Fracht für Loot) konzentrieren.
+        // WIRTSCHAFT ZUERST: reine Kampfschiffe erst bauen, wenn der Planet ein wirtschaftliches
+        // Grundgerüst hat. Andernfalls versickert das Budget in vielen billigen Jägern, während
+        // Minen/Labor/Werft zurückbleiben. Ausnahmen: Endgame (todesstern-fähig) und akuter Angriff.
+        const economyBackbone = !planet.isMoon
+          && planet.buildings.metalMine >= 20 && planet.buildings.crystalMine >= 18
+          && planet.buildings.researchLab >= 10 && planet.buildings.shipyard >= 10
+          && (planet.buildings.naniteFactory || 0) >= 3;
+        const allowWarships = economyBackbone || deathStarReady || isUnderAttack;
+
+        // Kleinstschiffe (lightFighter/smallCargo) werden bewusst NICHT mehr gespammt – die KI
+        // konzentriert das Budget auf schlagkräftige Einheiten (+ Große Transporter für Loot).
         const shipTypesByPriority: (keyof Ships)[] = deathStarReady
           ? ['destroyer', 'battlecruiser', 'bomber', 'battleship', 'cruiser', 'largeCargo']
-          : ['deathStar', 'destroyer', 'battlecruiser', 'bomber', 'battleship', 'cruiser', 'heavyFighter', 'lightFighter', 'largeCargo', 'smallCargo'];
+          : ['deathStar', 'destroyer', 'battlecruiser', 'bomber', 'battleship', 'cruiser', 'heavyFighter', 'largeCargo'];
         let shipQueued = false;
 
-        for (const sType of shipTypesByPriority) {
+        for (const sType of (allowWarships ? shipTypesByPriority : [])) {
           if (sType === 'colonyShip' || sType === 'solarSatellite') continue;
 
           const cost = SHIP_COSTS[sType];
@@ -2007,7 +2034,7 @@ export function runAILogic(state: GameState): GameState {
               planet.resources.deuterium -= totalCost.deuterium;
               const duration = getShipyardBuildDuration(cost, planet.buildings.shipyard, planet.buildings.roboticsFactory, speedMult, planet.buildings.naniteFactory || 0);
               planet.activeShipyardQueue.push({
-                id: `ai_ship_${Date.now()}_${seq.n}`,
+                id: `ai_ship_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
                 type: 'ship',
                 target: sType,
                 count: qty,
@@ -2051,7 +2078,7 @@ export function runAILogic(state: GameState): GameState {
             planet.resources.deuterium -= cost.deuterium;
             const duration = getShipyardBuildDuration(cost, planet.buildings.shipyard, planet.buildings.roboticsFactory, speedMult, planet.buildings.naniteFactory || 0);
             planet.activeShipyardQueue.push({
-              id: `ai_def_${Date.now()}_${seq.n}`,
+              id: `ai_def_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
               type: 'defense',
               target: defType,
               count: 1,
@@ -2069,7 +2096,9 @@ export function runAILogic(state: GameState): GameState {
     // 3. AI Research checking
     // Pick the planet with the HIGHEST research lab (no longer requires it to be build-idle,
     // which was the bug that prevented the AI from ever researching -> no drives -> no ships).
-    if (canAct && !actionTaken && !ai.activeResearchJob) {
+    // Forschung läuft auf EIGENEM Takt (nextResearchTime), unabhängig vom Bau-/Werft-Token.
+    // So verhungert sie nicht mehr hinter dem Schiffsbau und die KI bleibt technologisch aktuell.
+    if (now >= (ai.nextResearchTime ?? 0) && !ai.activeResearchJob) {
       const labPlanet = aiPlanets
         .filter(p => p.buildings.researchLab > 0)
         .sort((a, b) => b.buildings.researchLab - a.buildings.researchLab)[0];
@@ -2127,7 +2156,7 @@ export function runAILogic(state: GameState): GameState {
           );
 
           ai.activeResearchJob = {
-            id: `ai_research_${Date.now()}_${seq.n}`,
+            id: `ai_research_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
             type: 'research',
             target: targetResearch,
             level: currentLvl + 1,
@@ -2136,7 +2165,8 @@ export function runAILogic(state: GameState): GameState {
           };
 
           pushDebugLog(newState, ai.id, ai.name, 'research', `Erforscht ${RESEARCH_NAMES[targetResearch]} → Stufe ${currentLvl + 1}`, seq);
-          markActed();
+          // Eigener Forschungs-Takt (4–9 s); blockiert bewusst NICHT den Bau-/Werft-Token (kein markActed).
+          ai.nextResearchTime = now + 4000 + Math.random() * 5000;
         }
       }
     }
@@ -2263,7 +2293,7 @@ export function runAILogic(state: GameState): GameState {
             const arrival = now + duration * 1000;
 
             newState.fleets.push({
-              id: `ai_fleet_${Date.now()}_${seq.n}`,
+              id: `ai_fleet_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
               ownerId: ai.id,
               originPlanetId: sourcePlanet.id,
               targetPlanetId: target.id,
@@ -2308,7 +2338,7 @@ export function runAILogic(state: GameState): GameState {
           const departure = now;
           const arrival = now + duration * 1000;
           newState.fleets.push({
-            id: `ai_spy_${Date.now()}_${seq.n}`,
+            id: `ai_spy_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
             ownerId: ai.id,
             originPlanetId: probePlanet.id,
             targetPlanetId: target.id,
@@ -2349,7 +2379,7 @@ export function runAILogic(state: GameState): GameState {
         const departure = now;
         const arrival = now + duration * 1000;
         newState.fleets.push({
-          id: `ai_recycle_${Date.now()}_${seq.n}`,
+          id: `ai_recycle_${Date.now()}_${seq.n}_${Math.random().toString(36).slice(2)}`,
           ownerId: ai.id,
           originPlanetId: recyclerPlanet.id,
           targetPlanetId: targetField.id,

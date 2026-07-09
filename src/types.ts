@@ -154,6 +154,8 @@ export interface Player {
   lastAttackTimes?: Record<string, number>;
   // Echtzeit-Drossel: frühester Zeitpunkt (ms) für die nächste KI-Aktion. Optional → savegame-safe.
   nextActionTime?: number;
+  // Eigener Takt für Forschung – entkoppelt vom Bau-/Werft-Token, damit die KI zuverlässig forscht.
+  nextResearchTime?: number;
 }
 
 export type MissionType = 'transport' | 'attack' | 'spy' | 'colonize' | 'destroy' | 'recycle' | 'station';
