@@ -1027,7 +1027,9 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
             fleetClone.resources = combatResult.loot;
 
             const totalAttackerShipsRemaining = Object.values(fleetClone.ships).reduce((a, b) => a + b, 0);
-            if (totalAttackerShipsRemaining > 0 && !combatResult.planetDestroyed) {
+            // Überlebende fliegen immer zurück – auch nach einer erfolgreichen Planetenvernichtung.
+            // (Früher wurde die Flotte bei Erfolg still gelöscht, weil sie nicht in activeFleets landete.)
+            if (totalAttackerShipsRemaining > 0) {
               fleetClone.isReturning = true;
               const duration = Math.round((fleetClone.arrivalTime - fleetClone.departureTime) / 1000);
               fleetClone.departureTime = fleetClone.arrivalTime;
