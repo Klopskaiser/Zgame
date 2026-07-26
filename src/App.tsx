@@ -439,35 +439,69 @@ export default function App() {
     setHasSave(true);
   };
 
+  // Shared by handleLoadGame (localStorage) and handleImportSave (save1.json)
+  const applyLoadedState = (loaded: GameState) => {
+    const now = Date.now();
+    const deltaMs = now - loaded.lastTickTimestamp;
+
+    if (deltaMs > 5000) {
+      // Compute offline time details
+      const totalSeconds = Math.floor(deltaMs / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const mins = Math.floor((totalSeconds % 3600) / 60);
+      const secs = totalSeconds % 60;
+
+      setOfflineDetails({ hours, mins, secs });
+      setShowOfflineModal(true);
+
+      // Simulate offline time up to current timestamp
+      const simulated = simulateTimePassed(loaded, now);
+      setState(simulated);
+    } else {
+      setState(loaded);
+    }
+    setView('overview');
+  };
+
   const handleLoadGame = () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return;
 
     try {
       const loaded: GameState = migrateState(JSON.parse(saved));
-      const now = Date.now();
-      const deltaMs = now - loaded.lastTickTimestamp;
-
-      if (deltaMs > 5000) {
-        // Compute offline time details
-        const totalSeconds = Math.floor(deltaMs / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const mins = Math.floor((totalSeconds % 3600) / 60);
-        const secs = totalSeconds % 60;
-
-        setOfflineDetails({ hours, mins, secs });
-        setShowOfflineModal(true);
-
-        // Simulate offline time up to current timestamp
-        const simulated = simulateTimePassed(loaded, now);
-        setState(simulated);
-      } else {
-        setState(loaded);
-      }
-      setView('overview');
+      applyLoadedState(loaded);
     } catch (e) {
       console.error('Failed to load save state:', e);
       alert('Spielstand beschädigt! Starten Sie ein neues Spiel.');
+    }
+  };
+
+  const handleExportSave = () => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+
+    const blob = new Blob([saved], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'save1.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportSave = async (file: File) => {
+    try {
+      const text = await file.text();
+      const loaded: GameState = migrateState(JSON.parse(text));
+      // Erst nach erfolgreicher Migration den Browser-Save überschreiben
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+      setHasSave(true);
+      applyLoadedState(loaded);
+    } catch (e) {
+      console.error('Failed to import save file:', e);
+      alert('Datei ist kein gültiger Orionkriege-Spielstand.');
     }
   };
 
@@ -1342,6 +1376,8 @@ export default function App() {
       <MainMenu
         onNewGame={handleNewGame}
         onLoadGame={handleLoadGame}
+        onExportSave={handleExportSave}
+        onImportSave={handleImportSave}
         hasSave={hasSave}
       />
     );

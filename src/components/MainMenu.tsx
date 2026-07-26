@@ -3,18 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Star, Rocket, ShieldAlert, Cpu, Award, Code, Terminal, Server } from 'lucide-react';
+import { Star, Rocket, ShieldAlert, Cpu, Award, Code, Terminal, Server, Download, Upload } from 'lucide-react';
 
 interface MainMenuProps {
   onNewGame: (speed: number, isDebug?: boolean) => void;
   onLoadGame: () => void;
+  onExportSave: () => void;
+  onImportSave: (file: File) => void;
   hasSave: boolean;
 }
 
-export default function MainMenu({ onNewGame, onLoadGame, hasSave }: MainMenuProps) {
+export default function MainMenu({ onNewGame, onLoadGame, onExportSave, onImportSave, hasSave }: MainMenuProps) {
   const [speedMultiplier, setSpeedMultiplier] = useState<number>(10);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [stars, setStars] = useState<{ x: number; y: number; size: number; delay: number }[]>([]);
 
   useEffect(() => {
@@ -171,9 +174,40 @@ export default function MainMenu({ onNewGame, onLoadGame, hasSave }: MainMenuPro
                 className="theme-btn py-3 px-6 rounded cursor-pointer flex items-center justify-center gap-2 hover:border-blue-500 transform active:scale-[0.99] transition-all font-mono tracking-wider"
               >
                 <Award className="w-4 h-4 text-indigo-400" />
-                Spielstand laden
+                Spielstand fortsetzen
               </button>
             )}
+
+            {/* Export Save to File Button */}
+            {hasSave && (
+              <button
+                onClick={onExportSave}
+                className="theme-btn py-3 px-6 rounded cursor-pointer flex items-center justify-center gap-2 hover:border-emerald-500 transform active:scale-[0.99] transition-all font-mono tracking-wider"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                Spielstand sichern (save1.json)
+              </button>
+            )}
+
+            {/* Import Save from File Button */}
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImportSave(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              className="theme-btn py-3 px-6 rounded cursor-pointer flex items-center justify-center gap-2 hover:border-amber-500 transform active:scale-[0.99] transition-all font-mono tracking-wider"
+            >
+              <Upload className="w-4 h-4 text-amber-400" />
+              Spielstand laden (save1.json)
+            </button>
           </div>
 
           {/* GREEN TERMINAL ARCHITECTURE PANEL */}

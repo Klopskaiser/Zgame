@@ -29,15 +29,13 @@ jeweiligen Browsers unter dem Schlüssel `orionkriege_savestate_v1`. Das bedeute
 - **Origin-gebunden:** Der Stand hängt an der Adresse (z. B. `http://localhost:3000`).
   Ein anderer Port oder eine andere Adresse = anderer Speicher.
 
-### Stand manuell übertragen
-1. Auf dem **Quell**-Browser die Entwicklerkonsole öffnen (F12) und ausführen — kopiert
-   den Stand in die Zwischenablage:
-   ```js
-   copy(localStorage.getItem('orionkriege_savestate_v1'))
-   ```
-2. Auf dem **Ziel**-Browser das Spiel öffnen, dann in der Konsole (JSON-Text aus der
-   Zwischenablage einfügen):
-   ```js
-   localStorage.setItem('orionkriege_savestate_v1', `<hier den kopierten JSON-Text einfügen>`)
-   ```
-3. Seite neu laden und im Hauptmenü **„Spielstand laden"** wählen.
+### Stand per Datei übertragen (save1.json)
+1. Auf dem **Quell**-Browser im Hauptmenü **„Spielstand sichern (save1.json)"** wählen —
+   der Stand wird als `save1.json` in den Download-Ordner heruntergeladen.
+   (Existiert dort schon eine `save1.json`, fragt der Browser bzw. hängt `(1)` an den Namen an.)
+2. Die Datei auf den Zielrechner bringen (USB, Cloud, Mail, …).
+3. Auf dem **Ziel**-Browser im Hauptmenü **„Spielstand laden (save1.json)"** wählen und die
+   Datei auswählen — der Stand wird in den Browser übernommen und das Spiel startet direkt
+   (inkl. Offline-Simulation der vergangenen Zeit).
+
+**„Spielstand fortsetzen"** lädt weiterhin den lokalen Stand aus dem `localStorage` des Browsers.
