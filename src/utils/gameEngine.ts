@@ -45,6 +45,9 @@ import {
   getMaxBuildingLevel,
   getRapidFire,
   UnitKey,
+  DEATHSTAR_MIN_FOR_DESTRUCTION,
+  DEATHSTAR_LOSS_ON_FAILURE,
+  getPlanetDestructionChance,
 } from './formulas';
 
 // --- FACTORY HELPERS ---
@@ -1462,22 +1465,22 @@ export function runCombat(
 
   if (mission === 'destroy' && combatWinner === 'attacker') {
     const dsCount = attackerShipsRemaining.deathStar || 0;
-    // Condition 1: At least 10 Deathstars in the attacking fleet
-    if (dsCount >= 10) {
+    // Condition 1: mindestens DEATHSTAR_MIN_FOR_DESTRUCTION Todessterne in der Angriffsflotte
+    if (dsCount >= DEATHSTAR_MIN_FOR_DESTRUCTION) {
       // Condition 2: Defender defense & ships is reduced to 1% or less of attacker remaining fleet value
       const remainingAttVal = calculateFleetResourceValue(attackerShipsRemaining);
       const remainingDefVal = calculateFleetResourceValue(countShips(defenderUnits)) + calculateDefenseResourceValue(countDefense(defenderUnits));
 
       if (remainingDefVal <= remainingAttVal * 0.01) {
-        // Run planet destruction trial!
+        // Vernichtungsprobe: Chance skaliert mit der Anzahl der überlebenden Todessterne
+        // (10 → 20 %, 20 → 50 %, 50+ → 99 %, dazwischen linear interpoliert).
         const roll = Math.random();
-        if (roll < 0.20) {
-          // Success (20% chance)
+        if (roll < getPlanetDestructionChance(dsCount)) {
           planetDestroyed = true;
         } else {
-          // Failure (80% chance): exactly 10 death stars are destroyed
-          deathStarsLost = 10;
-          attackerShipsRemaining.deathStar = Math.max(0, dsCount - 10);
+          // Fehlschlag: fix DEATHSTAR_LOSS_ON_FAILURE Todessterne gehen verloren
+          deathStarsLost = DEATHSTAR_LOSS_ON_FAILURE;
+          attackerShipsRemaining.deathStar = Math.max(0, dsCount - DEATHSTAR_LOSS_ON_FAILURE);
         }
       }
     }

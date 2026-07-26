@@ -185,7 +185,7 @@ export default function CombatLogsView({ logs, onClearLogs }: CombatLogsViewProp
                             <div>
                               <h4 className="font-bold text-sm">TODESSTERN-SCHUSS FEHLGESCHLAGEN!</h4>
                               <p className="text-[11px] text-amber-400 mt-0.5">
-                                Der Versuch, den Planeten zu zerbröseln, schlug fehl (80% Fehlschlagswahrscheinlichkeit). Dabei wurden genau 10 Todessterne der Flotte im Orbit zerschmettert.
+                                Der Versuch, den Planeten zu zerbröseln, schlug fehl. Dabei wurden {log.deathStarsLost} Todessterne der Flotte im Orbit zerschmettert.
                               </p>
                             </div>
                           </div>

@@ -113,7 +113,7 @@ export default function MainMenu({ onNewGame, onLoadGame, onExportSave, onImport
 
           <div className="mt-auto p-4 bg-slate-900/60 border border-slate-800 text-[10px] text-slate-400 leading-relaxed rounded font-mono">
             <span className="font-bold text-slate-300 block mb-1 uppercase tracking-wider text-[11px] text-red-400">Siegbedingung:</span>
-            Vernichtung aller Planeten der KI. Der Todesstern-Angriff erfordert 10 Einheiten und unterliegt einer 20% Erfolgswahrscheinlichkeit bei minimaler Verteidigungslast. Fehlschläge zerstören die Flotte.
+            Vernichtung aller Planeten der KI. Der Todesstern-Angriff erfordert mindestens 10 Einheiten und gelingt nur bei minimaler Restverteidigung des Ziels. Die Erfolgschance skaliert mit der Flottengröße: 10 Todessterne → 20%, 20 → 50%, 50 und mehr → 99%. Jeder Fehlschlag kostet 10 Todessterne.
           </div>
         </aside>
 

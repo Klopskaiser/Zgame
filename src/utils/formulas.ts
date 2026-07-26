@@ -181,6 +181,40 @@ export const DEFENSE_STATS: Record<keyof Defense, UnitStats> = {
   largeShieldDome: { structural: 100000, shield: 10000, attack: 1 },
 };
 
+// --- Planetenvernichtung (Todesstern) ---
+
+/** Mindestanzahl Todessterne in der siegreichen Flotte für einen Vernichtungsversuch. */
+export const DEATHSTAR_MIN_FOR_DESTRUCTION = 10;
+
+/** Verlust bei Fehlschlag – fix, unabhängig von der Flottengröße. */
+export const DEATHSTAR_LOSS_ON_FAILURE = 10;
+
+/** Stützpunkte der Vernichtungschance (aufsteigend nach Anzahl). Dazwischen wird linear
+ *  interpoliert, ab dem letzten Punkt bleibt die Chance konstant. Einziger Stellhebel
+ *  für das Balancing der Planetenvernichtung. */
+const DESTRUCTION_CHANCE_POINTS: { ships: number; chance: number }[] = [
+  { ships: 10, chance: 0.20 },
+  { ships: 20, chance: 0.50 },
+  { ships: 50, chance: 0.99 },
+];
+
+/** Vernichtungschance (0..1) für eine gegebene Anzahl Todessterne.
+ *  Unter DEATHSTAR_MIN_FOR_DESTRUCTION ist kein Versuch möglich → 0. */
+export function getPlanetDestructionChance(deathStars: number): number {
+  if (deathStars < DEATHSTAR_MIN_FOR_DESTRUCTION) return 0;
+  const last = DESTRUCTION_CHANCE_POINTS[DESTRUCTION_CHANCE_POINTS.length - 1];
+  if (deathStars >= last.ships) return last.chance;
+  for (let i = 0; i < DESTRUCTION_CHANCE_POINTS.length - 1; i++) {
+    const a = DESTRUCTION_CHANCE_POINTS[i];
+    const b = DESTRUCTION_CHANCE_POINTS[i + 1];
+    if (deathStars >= a.ships && deathStars < b.ships) {
+      const t = (deathStars - a.ships) / (b.ships - a.ships);
+      return a.chance + t * (b.chance - a.chance);
+    }
+  }
+  return DESTRUCTION_CHANCE_POINTS[0].chance;
+}
+
 // --- Rapidfire (Schnelles Feuer) ---
 
 export type UnitKey = keyof Ships | keyof Defense;

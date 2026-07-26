@@ -89,7 +89,10 @@ import {
   getMatterConverterMetalInput,
   getMatterConverterFactor,
   getMatterConverterEnergyConsumption,
-  getMatterConverterOutput
+  getMatterConverterOutput,
+  DEATHSTAR_MIN_FOR_DESTRUCTION,
+  DEATHSTAR_LOSS_ON_FAILURE,
+  getPlanetDestructionChance
 } from './utils/formulas';
 
 import MainMenu from './components/MainMenu';
@@ -3265,10 +3268,32 @@ export default function App() {
                         <option value="spy">Spionage</option>
                         <option value="colonize">Kolonisieren</option>
                         <option value="recycle">Recyceln</option>
-                        {selectedPlanet.ships.deathStar >= 10 && <option value="destroy">Planet vernichten</option>}
+                        {selectedPlanet.ships.deathStar >= DEATHSTAR_MIN_FOR_DESTRUCTION && <option value="destroy">Planet vernichten</option>}
                       </select>
                     </div>
                   </div>
+
+                  {/* Vernichtungschance: skaliert mit der Anzahl mitfliegender Todessterne. */}
+                  {manualMission === 'destroy' && (() => {
+                    const ds = manualShips.deathStar || 0;
+                    const chance = getPlanetDestructionChance(ds);
+                    return chance > 0 ? (
+                      <div className="bg-red-950/30 border border-red-900/50 p-3 rounded-xl text-[11px] font-mono text-red-200 leading-relaxed">
+                        Vernichtungschance mit {ds} Todessternen:{' '}
+                        <span className="font-bold text-red-400">{Math.round(chance * 100)}%</span>
+                        <span className="block text-[10px] text-slate-400 mt-1">
+                          {DEATHSTAR_MIN_FOR_DESTRUCTION} → 20%, 20 → 50%, 50+ → 99%. Fehlschlag kostet{' '}
+                          {DEATHSTAR_LOSS_ON_FAILURE} Todessterne. Zusätzlich muss die Restverteidigung des Ziels
+                          nach dem Kampf unter 1% des Flottenwerts liegen.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-950/30 border border-amber-900/50 p-3 rounded-xl text-[11px] font-mono text-amber-300">
+                        Mindestens {DEATHSTAR_MIN_FOR_DESTRUCTION} Todessterne mitschicken – sonst ist keine
+                        Planetenvernichtung möglich (der Angriff läuft dann wie ein normaler Angriff).
+                      </div>
+                    );
+                  })()}
 
                   {/* Ship quantities */}
                   <div className="space-y-2">
