@@ -463,6 +463,13 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
     converterConsumptionByPlanet.set(moon.parentPlanetId, prev + getMatterConverterEnergyConsumption(lvl, speedMult));
   }
 
+  // Metall, das in diesem Intervall produziert, aber am vollen Lager verworfen wurde (Schritt 1).
+  // Der Materieumwandler (Schritt 3b) darf sich daran bedienen, weil er den laufenden
+  // Produktionsstrom anzapft und nicht nur den eingelagerten Bestand. Ohne das würde bei großem
+  // deltaSeconds (Offline-Simulation beim Laden) der Umwandler den kompletten Lagerbestand
+  // auffressen, obwohl die Minen mehr liefern als er verbraucht.
+  const metalOverflowByPlanet = new Map<string, number>();
+
   // 1. SIMULATE BUILDING CONSTRUCTION AND RESOURCES FOR PLANETS
   for (const planet of planets) {
     let secondsToSimulate = deltaSeconds;
@@ -546,7 +553,11 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
     const softCapM = Math.max(caps.metal, startRes.metal);
     const softCapC = Math.max(caps.crystal, startRes.crystal);
     const softCapD = Math.max(caps.deuterium, startRes.deuterium);
+    const uncappedMetal = planet.resources.metal;
     planet.resources.metal = Math.min(softCapM, Math.max(0, parseFloat(planet.resources.metal.toFixed(1))));
+    // Am Lagerlimit verworfenes Metall merken – der Materieumwandler kann es noch verarbeiten.
+    const metalOverflow = Math.max(0, uncappedMetal - planet.resources.metal);
+    if (metalOverflow > 0) metalOverflowByPlanet.set(planet.id, metalOverflow);
     planet.resources.crystal = Math.min(softCapC, Math.max(0, parseFloat(planet.resources.crystal.toFixed(1))));
     planet.resources.deuterium = Math.min(softCapD, Math.max(0, parseFloat(planet.resources.deuterium.toFixed(1))));
     planet.lastResourceUpdate = currentTimestamp;
@@ -645,15 +656,22 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
       );
 
       const metalPerHour = getMatterConverterMetalInput(convLevel) * convRatio * speedMult;
-      let metalToProcess = (metalPerHour / 3600) * deltaSeconds;
-      metalToProcess = Math.min(metalToProcess, Math.max(0, holder.resources.metal));
+      // Verfügbar ist der Lagerbestand PLUS das im selben Intervall am Lagerlimit verworfene
+      // Metall (Produktionsstrom). Nur so liefert ein großes deltaSeconds dasselbe Ergebnis wie
+      // viele 1-Sekunden-Ticks: bei vollem Lager und positiver Bilanz bleibt das Metall stehen.
+      const overflow = metalOverflowByPlanet.get(holder.id) || 0;
+      const available = Math.max(0, holder.resources.metal + overflow);
+      const metalToProcess = Math.min((metalPerHour / 3600) * deltaSeconds, available);
       if (metalToProcess > 0) {
         const out = getMatterConverterOutput(
           convLevel, owner?.research.laserTech || 0, owner?.research.espionage || 0, metalToProcess
         );
-        holder.resources.metal -= metalToProcess;
+        // Neu setzen (nicht dekrementieren): der aus dem Überlauf gedeckte Anteil darf den
+        // Lagerbestand nicht zusätzlich belasten. Der weiche Lager-Cap unten kappt wieder nach oben.
+        holder.resources.metal = available - metalToProcess;
         holder.resources.crystal += out.crystal;
         holder.resources.deuterium += out.deuterium;
+        metalOverflowByPlanet.set(holder.id, Math.max(0, overflow - metalToProcess));
       }
     }
 
