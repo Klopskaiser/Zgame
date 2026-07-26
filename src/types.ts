@@ -133,6 +133,7 @@ export interface Planet {
   fusionActive?: boolean;
   converterActive?: boolean; // nur bei Monden: Materieumwandler an/aus (Default an)
   debris?: { metal: number; crystal: number }; // Trümmerfeld im Orbit (aus Kämpfen); von Recyclern bergbar
+  destroyed?: boolean; // durch Todesstern vernichtet: dauerhaft unbewohnbar, nicht kolonisierbar, nicht erneut vernichtbar
 }
 
 export interface Player {
@@ -203,6 +204,7 @@ export interface CombatLog {
   defenderLosses: Resources;
   planetDestroyed: boolean;
   deathStarsLost: number;
+  moonDestroyed?: boolean; // Mond im Orbit wurde mit dem Planeten vernichtet
   debrisCreated?: Resources; // im Kampf erzeugtes Trümmerfeld (Metall/Kristall); Deuterium immer 0
   espionageReport?: string;
   eventType?: 'moonAttempt'; // markiert generische Ereignis-Einträge (kein Kampf/Spionage)

@@ -109,6 +109,10 @@ export function migrateState(state: GameState): GameState {
     ships: sanitize(emptyShips(), p.ships),
     defense: sanitize(emptyDefense(), p.defense),
     moonId: p.moonId ?? null,
+    // Alte Stände kennen das destroyed-Flag noch nicht: bereits vernichtete Planeten sind dort
+    // eindeutig an ownerId === null + Namensschema "Trümmerfeld <System>:<Slot>" erkennbar
+    // (unkolonisierte Planeten heißen "Planet <System>:<Slot>").
+    destroyed: p.destroyed ?? (p.ownerId === null && !p.isMoon && p.name.startsWith('Trümmerfeld ')),
   }));
   return { ...state, players, planets, version: GAME_VERSION };
 }
@@ -692,6 +696,8 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
   // 4. SIMULATE FLEETS IN FLIGHT & RE-CALCULATE ARRIVALS
   const activeFleets: Fleet[] = [];
   const combatLog = [...state.combatLog];
+  // Monde, die mit ihrem Planeten vernichtet wurden – werden am Ende aus planets entfernt.
+  const destroyedMoonIds = new Set<string>();
 
   // Debug-Log-Ziel für KI-vs-KI-Kämpfe & KI-Spionage (nur im Debug-Modus; hält Spielerberichte sauber).
   const debugLog: DebugLogEntry[] | undefined = state.debugMode ? [...(state.debugLog ?? [])] : state.debugLog;
@@ -733,8 +739,8 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
             fleetClone.returnTime = fleetClone.arrivalTime + duration * 1000;
             activeFleets.push(fleetClone);
           } else if (fleetClone.mission === 'colonize') {
-            // Colonize planet
-            if (targetPlanet.ownerId === null) {
+            // Colonize planet – vernichtete Planeten (Trümmerfelder) sind dauerhaft unbewohnbar.
+            if (targetPlanet.ownerId === null && !targetPlanet.destroyed) {
               // Check Astrophysics requirements for colonization:
               // Max colonies = astrophysics level. Let's count current colonies of the player
               // Monde zählen NICHT zum Planetenlimit
@@ -792,7 +798,7 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
                 activeFleets.push(fleetClone);
               }
             } else {
-              // Target is occupied! Fleet returns
+              // Ziel besetzt oder vernichtet (unbewohnbares Trümmerfeld)! Flotte kehrt samt Kolonieschiff zurück.
               fleetClone.isReturning = true;
               const duration = Math.round((fleetClone.arrivalTime - fleetClone.departureTime) / 1000);
               fleetClone.departureTime = fleetClone.arrivalTime;
@@ -967,8 +973,10 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
 
             // Handle Planet Destruction
             if (combatResult.planetDestroyed) {
-              // Destroy planet!
+              // Destroy planet! Der Planet bleibt als unbewohnbares Trümmerfeld im Universum:
+              // destroyed = true sperrt Kolonisierung und eine erneute Vernichtung dauerhaft.
               targetPlanet.ownerId = null;
+              targetPlanet.destroyed = true;
               targetPlanet.name = `Trümmerfeld ${targetPlanet.system}:${targetPlanet.slot}`;
               targetPlanet.buildings = {
                 metalMine: 0,
@@ -994,6 +1002,17 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
               targetPlanet.defense = { rocketLauncher: 0, lightLaser: 0, heavyLaser: 0, gaussCannon: 0, ionCannon: 0, plasmaTurret: 0, smallShieldDome: 0, largeShieldDome: 0 };
               targetPlanet.resources = { metal: 50000, crystal: 35000, deuterium: 10000 }; // Convert into rich debris field/resources
               targetPlanet.fieldsUsed = 0;
+              // Laufende Bau-/Werftaufträge verfallen – auf einem Trümmerfeld wird nicht weitergebaut.
+              targetPlanet.activeBuildJob = null;
+              targetPlanet.activeBuildQueue = [];
+              targetPlanet.activeShipyardQueue = [];
+              targetPlanet.fusionActive = false;
+              // Ein Mond im Orbit wird mit dem Planeten vernichtet (samt Gebäuden, Flotte und Verteidigung).
+              if (targetPlanet.moonId) {
+                destroyedMoonIds.add(targetPlanet.moonId);
+                targetPlanet.moonId = null;
+                log.moonDestroyed = true;
+              }
             }
 
             // Trümmerfeld im Orbit anlegen/erhöhen (eigenes Feld → überlebt auch die Planetenzerstörung).
@@ -1072,6 +1091,28 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
     }
   }
 
+  // 4b. VERNICHTETE MONDE ENTFERNEN
+  // Der Mond verschwindet mitsamt Gebäuden, Flotte und Verteidigung aus dem Universum. In-place
+  // entfernen, damit Punkteberechnung (Schritt 5) und Rückgabe denselben Bestand sehen.
+  if (destroyedMoonIds.size > 0) {
+    for (let i = planets.length - 1; i >= 0; i--) {
+      if (destroyedMoonIds.has(planets[i].id)) planets.splice(i, 1);
+    }
+    // Flotten, deren Heimatbasis der vernichtete Mond war, weichen auf einen anderen Planeten
+    // desselben Besitzers aus; hat er keinen mehr, ist die Flotte mit ihrer Basis verloren.
+    for (let i = activeFleets.length - 1; i >= 0; i--) {
+      const f = activeFleets[i];
+      if (!destroyedMoonIds.has(f.originPlanetId)) continue;
+      const fallback = planets.find(p => p.ownerId === f.ownerId && !p.isMoon)
+        ?? planets.find(p => p.ownerId === f.ownerId);
+      if (fallback) {
+        activeFleets[i] = { ...f, originPlanetId: fallback.id };
+      } else {
+        activeFleets.splice(i, 1);
+      }
+    }
+  }
+
   // 5. CALCULATE SCORES / POINTS FOR EACH PLAYER
   for (const player of players) {
     let buildingsPt = 0;
@@ -1133,6 +1174,13 @@ export function simulateTimePassed(state: GameState, currentTimestamp: number): 
     players,
     planets,
     fleets: activeFleets,
+    // War der ausgewählte Himmelskörper ein vernichteter Mond, auf einen noch existierenden
+    // Planeten des Spielers umschalten (sonst zeigt die UI auf ein gelöschtes Objekt).
+    selectedPlanetId: destroyedMoonIds.has(state.selectedPlanetId)
+      ? (planets.find(p => p.ownerId === 'player' && !p.isMoon)?.id
+        ?? planets.find(p => p.ownerId === 'player')?.id
+        ?? state.selectedPlanetId)
+      : state.selectedPlanetId,
     // Gefechtsberichte auf die letzten COMBAT_LOG_CAP begrenzen, damit sie nicht unbegrenzt wachsen.
     combatLog: combatLog.length > COMBAT_LOG_CAP ? combatLog.slice(-COMBAT_LOG_CAP) : combatLog,
     debugLog,
@@ -1465,7 +1513,8 @@ export function runCombat(
   let planetDestroyed = false;
   let deathStarsLost = 0;
 
-  if (mission === 'destroy' && combatWinner === 'attacker') {
+  // Ein bereits vernichteter Planet (Trümmerfeld) kann nicht erneut zerstört werden.
+  if (mission === 'destroy' && combatWinner === 'attacker' && !targetPlanet.destroyed) {
     const dsCount = attackerShipsRemaining.deathStar || 0;
     // Condition 1: mindestens DEATHSTAR_MIN_FOR_DESTRUCTION Todessterne in der Angriffsflotte
     if (dsCount >= DEATHSTAR_MIN_FOR_DESTRUCTION) {
@@ -2197,7 +2246,8 @@ export function runAILogic(state: GameState): GameState {
     // 4. AI Colonization (if they have a colony ship, send it!)
     const colonyShipPlanet = aiPlanets.find(p => p.ships.colonyShip > 0);
     if (canAct && !actionTaken && colonyShipPlanet) {
-      const emptyPlanets = newState.planets.filter(p => p.ownerId === null);
+      // Vernichtete Planeten sind für die KI kein Kolonisierungsziel mehr.
+      const emptyPlanets = newState.planets.filter(p => p.ownerId === null && !p.destroyed);
       if (emptyPlanets.length > 0) {
         const target = emptyPlanets[Math.floor(Math.random() * emptyPlanets.length)];
         colonyShipPlanet.ships.colonyShip--;

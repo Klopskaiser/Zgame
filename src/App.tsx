@@ -654,6 +654,22 @@ export default function App() {
       return { success: false, error: 'Stationieren ist nur auf eigenen Planeten möglich.' };
     }
 
+    // Vernichtete Planeten sind dauerhaft unbewohnbar: kein Kolonisieren, keine zweite Vernichtung.
+    // (Trümmer bergen bleibt erlaubt.)
+    if (targetPlanet.destroyed) {
+      if (mission === 'destroy') {
+        return { success: false, error: 'Dieser Planet ist bereits vernichtet.' };
+      }
+      if (mission === 'colonize') {
+        return { success: false, error: 'Ein vernichteter Planet kann nicht besiedelt werden.' };
+      }
+    }
+
+    // Kolonisieren: nur auf freie, nie besiedelte Planetenslots.
+    if (mission === 'colonize' && targetPlanet.ownerId !== null) {
+      return { success: false, error: 'Dieser Planet ist bereits besiedelt.' };
+    }
+
     // Calculate flight stats
     const dist = getDistance(selectedPlanet.system, selectedPlanet.slot, targetSystem, targetSlot);
     let minSpeed = Infinity;
@@ -3277,6 +3293,17 @@ export default function App() {
                   {manualMission === 'destroy' && (() => {
                     const ds = manualShips.deathStar || 0;
                     const chance = getPlanetDestructionChance(ds);
+                    const targetBody = state.planets.find(
+                      (p) => p.system === manualTargetSystem && p.slot === manualTargetSlot && !p.isMoon
+                    );
+                    if (targetBody?.destroyed) {
+                      return (
+                        <div className="bg-slate-900/60 border border-slate-700 p-3 rounded-xl text-[11px] font-mono text-slate-300">
+                          {targetBody.name} ist bereits vernichtet – ein Trümmerfeld kann nicht erneut zerstört
+                          und auch nicht besiedelt werden. Nur Recycler haben hier noch etwas zu holen.
+                        </div>
+                      );
+                    }
                     return chance > 0 ? (
                       <div className="bg-red-950/30 border border-red-900/50 p-3 rounded-xl text-[11px] font-mono text-red-200 leading-relaxed">
                         Vernichtungschance mit {ds} Todessternen:{' '}

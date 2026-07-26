@@ -172,7 +172,8 @@ export default function CombatLogsView({ logs, onClearLogs }: CombatLogsViewProp
                             <div>
                               <h4 className="font-bold text-sm">PLANET ZERSTÖRT!</h4>
                               <p className="text-[11px] text-red-400 mt-0.5">
-                                Der Todesstern-Angriff war erfolgreich! Der Planet {log.system}:{log.slot} wurde in ein Trümmerfeld verwandelt!
+                                Der Todesstern-Angriff war erfolgreich! Der Planet {log.system}:{log.slot} wurde in ein Trümmerfeld verwandelt
+                                {log.moonDestroyed ? ' – der Mond im Orbit wurde mit vernichtet!' : '!'}
                               </p>
                             </div>
                           </div>

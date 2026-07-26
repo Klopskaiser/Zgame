@@ -240,6 +240,10 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
                           {owner.name} {isSelf && '(Du)'}
                         </span>
                       </div>
+                    ) : planet?.destroyed ? (
+                      <span className="text-xs text-red-500 font-semibold font-mono" title="Durch Todesstern vernichtet – dauerhaft unbewohnbar">
+                        Vernichtet
+                      </span>
                     ) : planet ? (
                       <span className="text-xs text-amber-500 font-semibold font-mono">Trümmerfeld / Wüst</span>
                     ) : (
@@ -325,8 +329,8 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
                               </button>
                             )}
 
-                            {/* Planet Destruction Quick Dispatch */}
-                            {selectedPlanet.ships.deathStar >= DEATHSTAR_MIN_FOR_DESTRUCTION && (
+                            {/* Planet Destruction Quick Dispatch (nicht bei bereits vernichteten Planeten) */}
+                            {!planet.destroyed && selectedPlanet.ships.deathStar >= DEATHSTAR_MIN_FOR_DESTRUCTION && (
                               <button
                                 onClick={() => handleOpenLaunch(slot, 'destroy')}
                                 className="p-1.5 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-900/40 text-amber-400 rounded-lg transition-all cursor-pointer"
@@ -364,7 +368,7 @@ export default function GalaxyView({ state, selectedPlanet, onLaunchFleet }: Gal
                       {(['spy', 'attack', 'transport', 'station', 'colonize', 'destroy', 'recycle'] as MissionType[]).map((m) => {
                         // Check if mission makes sense
                         if (m === 'colonize' && planet) return null;
-                        if (m === 'destroy' && (!planet || selectedPlanet.ships.deathStar < DEATHSTAR_MIN_FOR_DESTRUCTION)) return null;
+                        if (m === 'destroy' && (!planet || planet.destroyed || selectedPlanet.ships.deathStar < DEATHSTAR_MIN_FOR_DESTRUCTION)) return null;
                         if (m === 'recycle' && ((planet?.debris?.metal || 0) + (planet?.debris?.crystal || 0) <= 0)) return null;
                         // Stationieren nur auf eigenem Planeten; Angriff/Spionage gegen eigenen Planeten sinnlos.
                         if (m === 'station' && !isSelf) return null;
